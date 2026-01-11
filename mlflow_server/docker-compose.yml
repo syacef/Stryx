@@ -1,6 +1,6 @@
 services:
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.14.1
+    image: ghcr.io/mlflow/mlflow:v3.8.1
     container_name: mlflow_server
     restart: always
     ports:

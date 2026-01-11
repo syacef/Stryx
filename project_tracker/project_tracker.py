@@ -1,8 +1,7 @@
 import mlflow
 import os
-from dotenv import load_dotenv
 import logging
-
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -10,8 +9,8 @@ load_dotenv()
 TRACKING_URI = os.getenv("TRACKING_URI") 
 SSL_EXPERIMENT = "wildlife-ssl-pretraining"
 CLS_EXPERIMENT = "wildlife-species-classification"
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 class WildlifeTracker:
     def __init__(self, task_type="ssl"):
@@ -31,14 +30,17 @@ class WildlifeTracker:
         return mlflow.start_run(run_name=run_name)
 
     def log_ssl_model(self, model, architecture="resnet18"):
-        """Saves the Self-Supervised model and registers it."""
+        """Saves the Self-Supervised model and registers it directly."""
         logger.info(f"Logging SSL model ({architecture})...")
+        
+        mlflow.log_param("architecture", architecture)
+        
+        # log_model automatically handles saving and registration
         mlflow.pytorch.log_model(
             model, 
-            artifact_path="ssl_model",
+            name="ssl_model",
             registered_model_name="SSL_Foundation_Base"
         )
-        mlflow.log_param("architecture", architecture)
 
     def load_latest_ssl_model(self, version="latest"):
         """Helper for the Classification team to get the pretrained weights."""
@@ -50,10 +52,11 @@ class WildlifeTracker:
         """Saves the fine-tuned classifier and links it to the parent SSL model."""
         mlflow.log_metric("accuracy", accuracy)
         mlflow.log_param("source_ssl_version", source_ssl_version)
-        
         mlflow.set_tag("parent_ssl_model", f"SSL_Foundation_Base_v{source_ssl_version}")
         
-        # TODO: may be changed if other frameworks are used
+        logger.info(f"Logging classifier with accuracy {accuracy}...")
+
+        # log_model automatically handles saving and registration
         mlflow.pytorch.log_model(
             model, 
             artifact_path="classifier",
