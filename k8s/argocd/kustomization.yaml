@@ -1,0 +1,4 @@
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - install.yaml
