@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: argocd
+  name: apps
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "0"
@@ -24,4 +24,4 @@ spec:
   sources:
     - repoURL: https://github.com/syacef/Stryx.git
       targetRevision: HEAD
-      path: k8s/argocd
+      path: k8s/apps
