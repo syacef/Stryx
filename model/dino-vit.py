@@ -226,13 +226,13 @@ def pretrain_dino(
 # ==================== Usage ====================
 if __name__ == "__main__":
     # Path to your Caltech Camera Traps images
-    IMAGE_DIR = "/home/milik/Documents/scia/s9/dnn/project/data/"  # UPDATE THIS
+    IMAGE_DIR = "/home/samy/khaled/Wildlife-Species-Recognition-SSL/data/"  # UPDATE THIS
     
     # Pretrain the model
     pretrained_model = pretrain_dino(
         image_dir=IMAGE_DIR,
         num_epochs=20,  # Adjust based on your needs
-        batch_size=32,   # Adjust based on your GPU memory
+        batch_size=8,   # Adjust based on your GPU memory
         learning_rate=1e-4
     )
     
