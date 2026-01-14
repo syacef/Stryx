@@ -1,4 +1,7 @@
-from project_tracker import WildlifeTracker
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from project_tracker.project_tracker import WildlifeTracker
 from torchvision import models
 import torch
 # 1. Setup

@@ -1,0 +1,28 @@
+services:
+  deepstream-app:
+    build: .
+    image: my-deepstream-service:latest
+    # ESSENTIAL: Enable GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    # runtime: nvidia  # Alternative syntax for older docker versions
+    
+    volumes:
+      # Map current dir for easy dev
+      - ./src:/app
+      # Map DeepStream samples so we can use their video files if needed
+      - /opt/nvidia/deepstream/deepstream/samples:/opt/nvidia/deepstream/deepstream/samples
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    
+    # If using graphical output (X11)
+    environment:
+      - DISPLAY=$DISPLAY
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    
+    # Keep container alive if app crashes, for debugging
+    command: tail -f /dev/null
