@@ -9,7 +9,7 @@ spec:
     # 1. The URL to your git repository
     repoURL: https://github.com/syacef/Stryx.git
     # 2. The branch to track
-    targetRevision: k8s
+    targetRevision: HEAD
     # 3. The path inside the repo where timescaledb-k3s.yaml lives
     path: k8s/timescaledb
   destination:

@@ -30,7 +30,13 @@ spec:
         volumeMounts:
         - name: storage-volume
           mountPath: /var/lib/postgresql/data
-      volumes:
-      - name: storage-volume
-        persistentVolumeClaim:
-          claimName: timescaledb-pvc
+  volumeClaimTemplates:
+  - metadata:
+      name: storage-volume
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: 10Gi
