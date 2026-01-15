@@ -51,14 +51,14 @@ spec:
           path: /
 
         # 4. Automated Datasource Setup
-          datasources.yaml:
-            apiVersion: 1
-            datasources:
-              - name: Prometheus
-                type: prometheus
-                url: http://timescaledb.timescaledb.svc.cluster.local
-                access: proxy
-                isDefault: true
+        datasources.yaml:
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              url: http://timescaledb.timescaledb.svc.cluster.local
+              access: proxy
+              isDefault: true
 
         # 5. Resource Management (Preventing the pod from consuming too much memory/CPU)
         resources:
