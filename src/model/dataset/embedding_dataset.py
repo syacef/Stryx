@@ -3,6 +3,7 @@ import torch
 import os
 import glob
 
+
 class EmbeddingDataset(Dataset):
     def __init__(self, data_path):
         self.files = glob.glob(os.path.join(data_path, "*.pt"))
