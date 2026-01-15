@@ -1,4 +1,0 @@
-mlflow
-python-dotenv
-torch
-torchvision
