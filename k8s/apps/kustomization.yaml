@@ -2,3 +2,4 @@ kind: Kustomization
 resources:
   - argocd.yaml 
   - apps.yaml
+  - grafana.yaml

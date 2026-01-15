@@ -1,0 +1,76 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  namespace: argocd
+  name: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app: grafana
+spec:
+  project: default
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
+  destination:
+    name: in-cluster
+    namespace: grafana
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: grafana
+    targetRevision: 10.5.8
+    helm:
+      values: |
+        # 1. Basic Admin Credentials
+        adminUser: admin
+        adminPassword: "admin"
+
+        # 2. Persistence (Highly Recommended so data persists after pod restarts)
+        persistence:
+          enabled: true
+          type: pvc
+          size: 10Gi
+          accessModes:
+            - ReadWriteOnce
+
+        # 3. Networking & Access
+        service:
+          enabled: true
+          type: ClusterIP
+          port: 80
+          targetPort: 3000
+
+        ingress:
+          enabled: false
+          ingressClassName: nginx
+          hosts:
+            - grafana.example.com
+          path: /
+
+        # 4. Automated Datasource Setup
+        datasources.yaml:
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              url: http://timescaledb.timescaledb.svc.cluster.local
+              access: proxy
+              isDefault: true
+
+        # 5. Resource Management (Preventing the pod from consuming too much memory/CPU)
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+
+        # 6. Security Context (Best practice for non-root execution)
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 472
+          fsGroup: 472
