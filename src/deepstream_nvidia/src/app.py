@@ -21,20 +21,29 @@ def main():
     # source (RTSP) -> h264depay -> h264parse -> nvv4l2decoder -> nvstreammux -> nvvideoconvert -> nvdsosd -> nvvideoconvert -> nvv4l2h264enc -> rtph264pay -> udpsink
     
     # NOTE: Replace this URI with your camera or a sample public RTSP stream
-    RTSP_INPUT = "file:///opt/nvidia/deepstream/deepstream/samples/streams/sample_1080p_h264.mp4"
+    RTSP_INPUT = "rtsp://127.0.0.1:8554/mystream"
 
     
     print("Creating Pipeline...")
     pipeline = Gst.Pipeline()
 
-    # 1. Source (Simplification: using uridecodebin for automatic handling)
-    source = Gst.ElementFactory.make("uridecodebin", "source")
-    source.set_property("uri", RTSP_INPUT)
+    # 1. Source - RTSP with explicit decoding chain
+    source = Gst.ElementFactory.make("rtspsrc", "source")
+    source.set_property("location", RTSP_INPUT)
+    source.set_property("latency", 100)
+    source.set_property("drop-on-latency", True)
+    
+    # Depayloader and parser for H264
+    rtph264depay = Gst.ElementFactory.make("rtph264depay", "depay")
+    h264parse = Gst.ElementFactory.make("h264parse", "parser")
+    
+    # NVIDIA H264 decoder
+    nvv4l2decoder = Gst.ElementFactory.make("nvv4l2decoder", "decoder")
 
     # 2. Muxer (Required for DeepStream even with 1 source)
     streammux = Gst.ElementFactory.make("nvstreammux", "streammux")
-    streammux.set_property("width", 1920)
-    streammux.set_property("height", 1080)
+    streammux.set_property("width", 320)
+    streammux.set_property("height", 180)
     streammux.set_property("batch-size", 1)
     streammux.set_property("batched-push-timeout", 4000000)
 
@@ -53,19 +62,41 @@ def main():
     
     print("Adding elements to pipeline...")
     pipeline.add(source)
+    pipeline.add(rtph264depay)
+    pipeline.add(h264parse)
+    pipeline.add(nvv4l2decoder)
     pipeline.add(streammux)
     pipeline.add(nvvidconv)
     pipeline.add(nvosd)
     pipeline.add(sink)
 
     print("Linking elements...")
-    # Dynamic linking for uridecodebin
+    # Dynamic linking for rtspsrc (emits pad when stream is ready)
     def pad_added_handler(src, new_pad):
+        print(f"Pad added: {new_pad.get_name()}")
+        sink_pad = rtph264depay.get_static_pad("sink")
+        if not sink_pad.is_linked():
+            ret = new_pad.link(sink_pad)
+            if ret == Gst.PadLinkReturn.OK:
+                print("Successfully linked RTSP source to depayloader")
+            else:
+                print(f"Failed to link: {ret}")
+    
+    source.connect("pad-added", pad_added_handler)
+    
+    # Link the decode chain
+    rtph264depay.link(h264parse)
+    h264parse.link(nvv4l2decoder)
+    
+    # Link decoder to muxer (also needs dynamic pad)
+    def decoder_pad_added(src, new_pad):
         sink_pad = streammux.get_request_pad("sink_0")
         if not new_pad.link(sink_pad) == Gst.PadLinkReturn.OK:
             print("Failed to link decoder to muxer")
+        else:
+            print("Successfully linked decoder to muxer")
     
-    source.connect("pad-added", pad_added_handler)
+    nvv4l2decoder.connect("pad-added", decoder_pad_added)
     
     # Link the rest
     streammux.link(nvvidconv)

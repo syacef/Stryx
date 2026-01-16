@@ -2,6 +2,8 @@ services:
   deepstream-app:
     build: .
     image: my-deepstream-service:latest
+    # Use host network to access RTSP streams on host
+    network_mode: host
     # ESSENTIAL: Enable GPU access
     deploy:
       resources:
@@ -9,7 +11,7 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [gpu, video, compute, utility]
     # runtime: nvidia  # Alternative syntax for older docker versions
     
     volumes:
