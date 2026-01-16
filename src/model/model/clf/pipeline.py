@@ -53,7 +53,7 @@ class SafariPipeline:
 
         context = torch.set_grad_enabled(is_train)
         with context:
-            for batch_idx, (features, sp_targets, _) in enumerate(pbar):
+            for batch_idx, (features, sp_targets) in enumerate(pbar):
                 # features: [B, T, C, H, W]
                 features = features.to(self.device)
                 sp_targets = sp_targets.to(self.device)

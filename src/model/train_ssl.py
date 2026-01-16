@@ -12,5 +12,5 @@ if __name__ == "__main__":
     )
     pipeline.extract_features(RAW_DATA_PATH)
     pipeline.train_ssl(
-        video_input_dir=RAW_DATA_PATH, epochs=30, batch_size=32, lr=1e-3, start_epoch=13
+        video_input_dir=RAW_DATA_PATH, epochs=30, batch_size=32, lr=1e-4, start_epoch=22
     )
