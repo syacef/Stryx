@@ -4,13 +4,14 @@ import torch
 from torch.utils.data import Dataset
 from PIL import Image
 
+
 class DistillationDataset(Dataset):
     def __init__(self, embeddings_dir, video_base_dir="./data", transform=None):
         self.transform = transform
         self.samples = []
 
         emb_files = sorted(glob.glob(os.path.join(embeddings_dir, "*.pt")))
-        
+
         print(f"🔍 Found {len(emb_files)} embedding files. Mapping to frames...")
 
         for emb_path in emb_files:
@@ -25,10 +26,9 @@ class DistillationDataset(Dataset):
             frame_paths = sorted(glob.glob(os.path.join(video_folder, "*.jpg")))
             num_pairs = min(len(frame_paths), len(features))
             for i in range(num_pairs):
-                self.samples.append({
-                    "image_path": frame_paths[i],
-                    "target_emb": features[i]
-                })
+                self.samples.append(
+                    {"image_path": frame_paths[i], "target_emb": features[i]}
+                )
 
         print(f"✅ Dataset initialized with {len(self.samples)} image-embedding pairs.")
 
