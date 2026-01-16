@@ -54,7 +54,7 @@ COPY requirements.txt .
 RUN pip3 install -r requirements.txt
 
 # 5. Copy Application Code
-COPY src/app.py .
+COPY src/app.py src/random_classifier_91_classes.onnx src/labels.txt /app/.
 
 # 6. Entrypoint
 CMD ["python3", "app.py"]
