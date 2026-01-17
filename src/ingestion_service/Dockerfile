@@ -22,8 +22,8 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application
-COPY main.py .
+# Copy application files
+COPY *.py .
 
 # Create data directory
 RUN mkdir -p /data/videos

@@ -22,11 +22,8 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application
-COPY main.py .
-
-# Copy model code from parent directory
-# This will be handled by docker-compose volume mount
+# Copy application files
+COPY *.py .
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
