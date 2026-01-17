@@ -145,10 +145,12 @@ class SSLPipeline:
         mse_loss = nn.MSELoss()
 
         if start_epoch is not None:
-            model.load_state_dict(
-                torch.load(f"student_epoch{start_epoch}_{self.student_type}.pth")
-            )
-            print(f"Resumed training from epoch {start_epoch}")
+            checkpoint_path = f"student_epoch{start_epoch}_{self.student_type}.pth"
+            if os.path.exists(checkpoint_path):
+                model.load_state_dict(torch.load(checkpoint_path))
+                print(f"Resumed training from epoch {start_epoch}")
+            else:
+                print(f"Warning: Checkpoint {checkpoint_path} not found. Starting from scratch.")
 
         for epoch in range(start_epoch + 1 if start_epoch is not None else 0, epochs):
             model.train()

@@ -31,5 +31,5 @@ class SafariSpeciesClassifier(nn.Module):
             features = self.backbone(x)
 
         # Final classification
-        x = self.refiner(features)
+        x = self.proj(features)
         return self.species_head(x)

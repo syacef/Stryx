@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wildlife-species-recognition-ssl"
+version = "0.1.0"
+description = "Self-supervised learning for wildlife species recognition"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [ { name = "Samy" } ]
+requires-python = ">=3.8"
+
+dependencies = [
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "torch",
+  "torchvision",
+  "timm",
+  "mlflow",
+  "opencv-python-headless",
+  "albumentations",
+]
+
+[tool.black]
+line-length = 88
