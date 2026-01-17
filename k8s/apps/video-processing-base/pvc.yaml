@@ -5,7 +5,7 @@ metadata:
   namespace: video-processing
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   storageClassName: local-path
   resources:
     requests:
