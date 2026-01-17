@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/syacef/Stryx.git
+    targetRevision: HEAD
+    path: k8s/redis
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: video-processing
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
