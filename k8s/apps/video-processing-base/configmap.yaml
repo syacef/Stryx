@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: video-processing-config
+  namespace: video-processing
+data:
+  # Redis Configuration
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_QUEUE: "frame_queue"
+  
+  # Motion Detection Parameters (Ingestion Service)
+  MOTION_THRESHOLD: "25.0"
+  MIN_MOTION_AREA: "500"
+  FRAME_SKIP: "5"
+  JPEG_QUALITY: "85"
+  
+  # Model Configuration (Inference Service)
+  MODEL_TYPE: "dummy"
+  BATCH_SIZE: "8"
+  BATCH_TIMEOUT: "2.0"
+  
+  # Database Configuration
+  DB_HOST: "timescaledb.timescaledb.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "safari"

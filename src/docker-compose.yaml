@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # Redis Queue
+  redis:
+    image: redis:7-alpine
+    container_name: safari-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - safari-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Database
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: safari-postgres
+    environment:
+      POSTGRES_DB: safari
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - safari-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ingestion Service (CPU Optimized)
+  ingestion:
+    build:
+      context: ./ingestion_service
+      dockerfile: Dockerfile
+    container_name: safari-ingestion
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_QUEUE=frame_queue
+      - VIDEO_BUCKET=/data/videos
+      - MOTION_THRESHOLD=25.0
+      - MIN_MOTION_AREA=500
+      - FRAME_SKIP=5
+    volumes:
+      - ./data/videos:/data/videos
+      - ./ingestion_service:/app
+    ports:
+      - "8000:8000"
+    networks:
+      - safari-net
+    restart: unless-stopped
+    # CPU limits - optimize for video processing
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+  # Inference Service (GPU Optimized)
+  inference:
+    build:
+      context: ./inference_service
+      dockerfile: Dockerfile
+    container_name: safari-inference
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_QUEUE=frame_queue
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=safari
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - MODEL_TYPE=dummy
+      - MODEL_CHECKPOINT=
+      - BATCH_SIZE=8
+      - BATCH_TIMEOUT=2.0
+    volumes:
+      - ./inference_service:/app
+      - ./model:/app/model:ro
+      - ./models:/models:ro
+    ports:
+      - "8001:8001"
+    networks:
+      - safari-net
+    restart: unless-stopped
+    # GPU configuration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Optional: Triton Inference Server for advanced batching
+  # Uncomment to use Triton instead of custom batching
+  # triton:
+  #   image: nvcr.io/nvidia/tritonserver:23.12-py3
+  #   container_name: safari-triton
+  #   ports:
+  #     - "8000:8000"  # HTTP
+  #     - "8001:8001"  # gRPC
+  #     - "8002:8002"  # Metrics
+  #   volumes:
+  #     - ./model_repository:/models
+  #   command: tritonserver --model-repository=/models
+  #   networks:
+  #     - safari-net
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+
+networks:
+  safari-net:
+    driver: bridge
+
+volumes:
+  redis-data:
+  postgres-data:
