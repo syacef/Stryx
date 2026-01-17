@@ -18,21 +18,17 @@ class ResidualBlock(nn.Module):
         return self.gelu(x + self.block(x))
 
 
-class SSLStudent(nn.Module):
+class ResNetSSL(nn.Module):
     def __init__(self, input_dim=384, hidden_dim=1024, embedding_dim=384, depth=3):
         super().__init__()
-        # Initial expansion
         self.input_proj = nn.Sequential(
             nn.Linear(input_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.GELU()
         )
 
-        # Deeper residual core
         self.core = nn.Sequential(*[ResidualBlock(hidden_dim) for _ in range(depth)])
 
-        # Final embedding projection
         self.output_proj = nn.Sequential(
             nn.Linear(hidden_dim, embedding_dim),
-            # No activation on the final layer for SSL embeddings
         )
 
     def forward(self, x):
