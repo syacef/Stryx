@@ -124,6 +124,48 @@ def perform_eda(json_path, data_root='src/model/data/train'):
             fill_rates.append(len(frames_set) / total)
             
     print(f"Average percentage of frames with at least one object: {np.mean(fill_rates)*100:.2f}%")
+    
+    # 6. Multiple Animals Analysis
+    print(f"\n--- Multiple Animals Statistics ---")
+    
+    # Count bboxes per frame to detect multiple animals
+    frame_bbox_counts = {}  # {(video_id, frame_idx): count}
+    
+    for ann in data['annotations']:
+        vid_id = ann['video_id']
+        if 'bboxes' in ann:
+            for frame_idx, bbox in enumerate(ann['bboxes']):
+                if bbox is not None:
+                    key = (vid_id, frame_idx)
+                    frame_bbox_counts[key] = frame_bbox_counts.get(key, 0) + 1
+    
+    # Count frames with single vs multiple animals
+    frames_with_single_animal = sum(1 for count in frame_bbox_counts.values() if count == 1)
+    frames_with_multiple_animals = sum(1 for count in frame_bbox_counts.values() if count > 1)
+    total_frames_with_animals = len(frame_bbox_counts)
+    
+    # Count videos that have at least one frame with multiple animals
+    videos_with_multiple_animals = set()
+    for (vid_id, frame_idx), count in frame_bbox_counts.items():
+        if count > 1:
+            videos_with_multiple_animals.add(vid_id)
+    
+    videos_with_only_single_animal = num_videos - len(videos_with_multiple_animals)
+    
+    print(f"Videos with multiple animals (in at least one frame): {len(videos_with_multiple_animals)} ({len(videos_with_multiple_animals)/num_videos*100:.1f}%)")
+    print(f"Videos with only single animals: {videos_with_only_single_animal} ({videos_with_only_single_animal/num_videos*100:.1f}%)")
+    print(f"\nFrames with single animal: {frames_with_single_animal} ({frames_with_single_animal/total_frames_with_animals*100:.1f}%)")
+    print(f"Frames with multiple animals: {frames_with_multiple_animals} ({frames_with_multiple_animals/total_frames_with_animals*100:.1f}%)")
+    print(f"Total frames with animals: {total_frames_with_animals}")
+    
+    # Distribution of animal counts per frame
+    max_animals_per_frame = max(frame_bbox_counts.values()) if frame_bbox_counts else 0
+    animal_count_distribution = Counter(frame_bbox_counts.values())
+    print(f"\nAnimal count distribution per frame:")
+    for num_animals in sorted(animal_count_distribution.keys()):
+        count = animal_count_distribution[num_animals]
+        print(f"  {num_animals} animal(s): {count} frames ({count/total_frames_with_animals*100:.1f}%)")
+    print(f"Maximum animals in single frame: {max_animals_per_frame}")
 
 if __name__ == "__main__":
     train_path = 'src/model/data/annotated/train/sa_fari_train.json'

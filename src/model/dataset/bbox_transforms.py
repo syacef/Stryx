@@ -1,8 +1,3 @@
-"""
-Bounding box-aware transforms for wildlife detection.
-Ensures animals remain visible during random cropping.
-"""
-
 import random
 import torch
 from torchvision.transforms import functional as F

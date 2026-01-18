@@ -1,10 +1,3 @@
-"""
-Visualize BboxAwareCrop vs Original Image vs Random Crop
-
-Compares different cropping strategies side-by-side to understand
-the impact of bbox-aware cropping on small objects.
-"""
-
 import json
 import os
 import random
