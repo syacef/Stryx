@@ -3,7 +3,7 @@ import argparse
 import os
 from collections import defaultdict
 
-def find_small_objects(json_path, area_threshold_pixels=1024, data_root='src/model/data/train'):
+def find_small_objects(json_path, area_threshold_pixels=256, data_root='src/model/data/train'):
     """
     Finds videos containing annotations with bounding box area smaller than threshold.
     Default threshold 1024 pixels corresponds to 32x32 box (COCO 'small' definition).
