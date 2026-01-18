@@ -35,14 +35,33 @@ def init_database():
             predictions JSONB,
             embedding FLOAT[],
             confidence FLOAT,
+            latitude FLOAT,
+            longitude FLOAT,
+            country VARCHAR(100),
+            continent VARCHAR(100),
+            predicted_class VARCHAR(100),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(video_id, frame_number)
         );
         
         CREATE INDEX IF NOT EXISTS idx_video_id ON inference_results(video_id);
         CREATE INDEX IF NOT EXISTS idx_created_at ON inference_results(created_at);
+        CREATE INDEX IF NOT EXISTS idx_predicted_class ON inference_results(predicted_class);
+        CREATE INDEX IF NOT EXISTS idx_country ON inference_results(country);
     """)
     
+    # Attempt to add columns if they don't exist (migration for existing DB)
+    try:
+        cursor.execute("ALTER TABLE inference_results ADD COLUMN IF NOT EXISTS latitude FLOAT;")
+        cursor.execute("ALTER TABLE inference_results ADD COLUMN IF NOT EXISTS longitude FLOAT;")
+        cursor.execute("ALTER TABLE inference_results ADD COLUMN IF NOT EXISTS country VARCHAR(100);")
+        cursor.execute("ALTER TABLE inference_results ADD COLUMN IF NOT EXISTS continent VARCHAR(100);")
+        cursor.execute("ALTER TABLE inference_results ADD COLUMN IF NOT EXISTS predicted_class VARCHAR(100);")
+        conn.commit()
+    except Exception as e:
+        logger.warning(f"Migration warning (columns might exist): {e}")
+        conn.rollback()
+
     conn.commit()
     cursor.close()
     conn.close()
@@ -58,15 +77,21 @@ def save_results(messages: List[Dict], predictions: List[Dict]):
     data = []
     for msg, pred in zip(messages, predictions):
         embedding = pred.get("embedding", None)
+        class_name = pred.get("class_name", None)
         
         data.append((
             msg["video_id"],
             msg["frame_number"],
             msg["timestamp"],
-            msg["motion_score"],
+            msg.get("motion_score", 0.0),
             json.dumps(pred),
             embedding,
-            pred.get("confidence", None)
+            pred.get("confidence", None),
+            msg.get("latitude"),
+            msg.get("longitude"),
+            msg.get("country"),
+            msg.get("continent"),
+            class_name
         ))
     
     # Insert data
@@ -74,12 +99,17 @@ def save_results(messages: List[Dict], predictions: List[Dict]):
         cursor,
         """
         INSERT INTO inference_results 
-        (video_id, frame_number, timestamp, motion_score, predictions, embedding, confidence)
+        (video_id, frame_number, timestamp, motion_score, predictions, embedding, confidence, latitude, longitude, country, continent, predicted_class)
         VALUES %s
         ON CONFLICT (video_id, frame_number) DO UPDATE SET
             predictions = EXCLUDED.predictions,
             embedding = EXCLUDED.embedding,
-            confidence = EXCLUDED.confidence
+            confidence = EXCLUDED.confidence,
+            latitude = EXCLUDED.latitude,
+            longitude = EXCLUDED.longitude,
+            country = EXCLUDED.country,
+            continent = EXCLUDED.continent,
+            predicted_class = EXCLUDED.predicted_class
         """,
         data
     )

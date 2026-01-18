@@ -21,7 +21,11 @@ class StreamManager:
         rtsp_url: str,
         name: Optional[str] = None,
         fps: int = 5,
-        resolution: Optional[tuple[int, int]] = None
+        resolution: Optional[tuple[int, int]] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        country: Optional[str] = None,
+        continent: Optional[str] = None
     ) -> bool:
         stream_key = f"{self.STREAM_PREFIX}{stream_id}"
         
@@ -35,6 +39,10 @@ class StreamManager:
             "name": name or stream_id,
             "fps": fps,
             "resolution": resolution,
+            "latitude": latitude,
+            "longitude": longitude,
+            "country": country,
+            "continent": continent,
             "status": "registered",
             "created_at": datetime.now().isoformat(),
             "frame_count": 0,

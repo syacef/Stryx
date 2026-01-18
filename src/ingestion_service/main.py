@@ -14,6 +14,7 @@ from models import (
 from stream_manager import StreamManager
 from worker_manager import WorkerManager
 from stream_worker import StreamWorker
+from geolocation import get_location_details
 
 # Configure logging
 logging.basicConfig(
@@ -120,6 +121,19 @@ async def register_stream(request: StreamRegisterRequest):
                 status_code=400, 
                 detail="Invalid RTSP URL. Must start with rtsp:// or rtsps://"
             )
+            
+        # Enrich location data if needed
+        country = request.country
+        continent = request.continent
+        
+        if request.latitude is not None and request.longitude is not None:
+            if not country or not continent:
+                try:
+                    calc_country, calc_continent = get_location_details(request.latitude, request.longitude)
+                    country = country or calc_country
+                    continent = continent or calc_continent
+                except Exception as e:
+                    logger.warning(f"Failed to calculate location details: {e}")
         
         # Register stream
         result = stream_manager.register_stream(
@@ -127,7 +141,11 @@ async def register_stream(request: StreamRegisterRequest):
             rtsp_url=request.rtsp_url,
             name=request.name,
             fps=request.fps,
-            resolution=request.resolution
+            resolution=request.resolution,
+            latitude=request.latitude,
+            longitude=request.longitude,
+            country=country,
+            continent=continent
         )
         
         if not result:
@@ -145,7 +163,11 @@ async def register_stream(request: StreamRegisterRequest):
             rtsp_url=request.rtsp_url,
             name=request.name,
             status="registered",
-            worker_id=worker_id
+            worker_id=worker_id,
+            latitude=request.latitude,
+            longitude=request.longitude,
+            country=country,
+            continent=continent
         )
         
     except HTTPException:

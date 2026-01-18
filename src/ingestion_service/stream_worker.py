@@ -141,7 +141,8 @@ class StreamWorker:
                 "target_fps": stream_info.get("fps", 5),
                 "resolution": stream_info.get("resolution"),
                 "reconnect_attempts": 0,
-                "last_reconnect": 0
+                "last_reconnect": 0,
+                "prev_gray": None
             }
             
             # Update stream status
@@ -224,6 +225,17 @@ class StreamWorker:
     
     def _send_frame(self, stream_id: str, frame, stream_data: dict):
         try:
+            # Calculate motion score
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            motion_score = 0.0
+            
+            if stream_data["prev_gray"] is not None:
+                # Calculate absolute difference between current frame and previous frame
+                frame_diff = cv2.absdiff(stream_data["prev_gray"], gray)
+                motion_score = float(frame_diff.mean())
+            
+            stream_data["prev_gray"] = gray
+            
             # Generate unique frame ID
             frame_id = f"{stream_id}_{uuid.uuid4().hex[:8]}"
             
@@ -237,6 +249,7 @@ class StreamWorker:
             timestamp = frame_count / target_fps if target_fps > 0 else 0
             
             # Create frame message
+            stream_info = stream_data["info"]
             message = {
                 "stream_id": stream_id,
                 "video_id": stream_id,
@@ -244,9 +257,14 @@ class StreamWorker:
                 "timestamp": timestamp,
                 "frame_number": frame_count,
                 "frame_data": frame_bytes.hex(),
+                "motion_score": motion_score,
                 "shape": frame.shape[:2],  # (height, width)
                 "worker_id": self.worker_id,
-                "captured_at": datetime.now().isoformat()
+                "captured_at": datetime.now().isoformat(),
+                "latitude": stream_info.get("latitude"),
+                "longitude": stream_info.get("longitude"),
+                "country": stream_info.get("country"),
+                "continent": stream_info.get("continent")
             }
             
             # Push to Redis queue

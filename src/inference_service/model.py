@@ -46,6 +46,15 @@ class DummyModel(nn.Module):
             return torch.nn.functional.normalize(embeddings, dim=1)
 
 
+# Dummy class names for Safari dataset
+CLASS_NAMES = [
+    "antelope", "bear", "cheetah", "chimpanzee", "crocodile", 
+    "elephant", "flamingo", "giraffe", "gorilla", "hippo", 
+    "hyena", "leopard", "lion", "meerkat", "ostrich", 
+    "rhino", "snake", "tiger", "warthog", "zebra"
+]
+
+
 def load_model():
     """
     Load the inference model based on configuration.
@@ -57,13 +66,13 @@ def load_model():
     
     if MODEL_TYPE == "dummy":
         # Use dummy model for testing
-        model = DummyModel(model_type="classifier", num_classes=20)
+        model = DummyModel(model_type="classifier", num_classes=len(CLASS_NAMES))
         logger.info("Loaded dummy model (for testing)")
     
     elif MODEL_TYPE == "classifier":
         # In future, load real classifier
         # For now, use dummy
-        model = DummyModel(model_type="classifier", num_classes=20)
+        model = DummyModel(model_type="classifier", num_classes=len(CLASS_NAMES))
         
         if MODEL_CHECKPOINT:
             logger.info(f"Checkpoint specified: {MODEL_CHECKPOINT}")
@@ -110,8 +119,13 @@ def run_inference(model, frames: List[np.ndarray]) -> List[Dict[str, Any]]:
             
             results = []
             for i in range(len(frames)):
+                class_idx = int(predictions[i].item())
+                # Ensure index is within bounds (safety for dummy model)
+                class_idx = class_idx % len(CLASS_NAMES)
+                
                 results.append({
-                    "class_id": int(predictions[i].item()),
+                    "class_id": class_idx,
+                    "class_name": CLASS_NAMES[class_idx],
                     "confidence": float(confidences[i].item()),
                     "probabilities": probabilities[i].cpu().tolist()
                 })

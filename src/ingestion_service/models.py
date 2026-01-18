@@ -31,6 +31,26 @@ class StreamRegisterRequest(BaseModel):
         description="Target resolution (width, height). None to keep original.",
         example=(1280, 720)
     )
+    latitude: Optional[float] = Field(
+        None,
+        description="Geographical latitude of the camera",
+        example=48.8566
+    )
+    longitude: Optional[float] = Field(
+        None,
+        description="Geographical longitude of the camera",
+        example=2.3522
+    )
+    country: Optional[str] = Field(
+        None,
+        description="Country code or name",
+        example="France"
+    )
+    continent: Optional[str] = Field(
+        None,
+        description="Continent name",
+        example="Europe"
+    )
 
 
 class StreamResponse(BaseModel):
@@ -40,6 +60,10 @@ class StreamResponse(BaseModel):
     name: Optional[str] = Field(None, description="Stream name")
     status: str = Field(..., description="Stream status", example="registered")
     worker_id: str = Field(..., description="Assigned worker ID")
+    latitude: Optional[float] = Field(None, description="Latitude")
+    longitude: Optional[float] = Field(None, description="Longitude")
+    country: Optional[str] = Field(None, description="Country")
+    continent: Optional[str] = Field(None, description="Continent")
 
 
 class StreamDeleteResponse(BaseModel):
@@ -67,9 +91,15 @@ class WorkerStatusResponse(BaseModel):
 class FrameMessage(BaseModel):
     """Frame message for Redis queue."""
     stream_id: str = Field(..., description="Stream identifier")
+    video_id: str = Field(..., description="Video/Stream identifier for compatibility")
     frame_id: str = Field(..., description="Unique frame identifier")
     timestamp: float = Field(..., description="Frame timestamp in seconds")
     frame_number: int = Field(..., description="Sequential frame number")
     frame_data: str = Field(..., description="Base64 or hex encoded frame data")
+    motion_score: float = Field(..., description="Motion score of the frame")
     shape: tuple[int, int] = Field(..., description="Frame shape (height, width)")
     worker_id: str = Field(..., description="Worker that processed this frame")
+    latitude: Optional[float] = Field(None, description="Latitude")
+    longitude: Optional[float] = Field(None, description="Longitude")
+    country: Optional[str] = Field(None, description="Country")
+    continent: Optional[str] = Field(None, description="Continent")
