@@ -3,3 +3,5 @@ resources:
   - argocd.yaml 
   - apps.yaml
   - grafana.yaml
+  - argocd-redis.yaml
+  - argocd-video-processing.yaml

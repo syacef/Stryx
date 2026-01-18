@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion-service
+  namespace: video-processing
+  labels:
+    app: ingestion-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingestion-service
+  template:
+    metadata:
+      labels:
+        app: ingestion-service
+    spec:
+      containers:
+      - name: ingestion-service
+        image: video-ingestion:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: REDIS_PORT
+        - name: REDIS_DB
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: REDIS_DB
+        - name: REDIS_QUEUE
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: REDIS_QUEUE
+        - name: MOTION_THRESHOLD
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: MOTION_THRESHOLD
+        - name: MIN_MOTION_AREA
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: MIN_MOTION_AREA
+        - name: FRAME_SKIP
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: FRAME_SKIP
+        - name: JPEG_QUALITY
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: JPEG_QUALITY
+        - name: VIDEO_BUCKET
+          value: "/data/videos"
+        volumeMounts:
+        - name: video-storage
+          mountPath: /data/videos
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: video-storage
+        persistentVolumeClaim:
+          claimName: video-storage-pvc

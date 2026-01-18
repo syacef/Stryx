@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-service
+  namespace: video-processing
+  labels:
+    app: inference-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inference-service
+  template:
+    metadata:
+      labels:
+        app: inference-service
+    spec:
+      containers:
+      - name: inference-service
+        image: video-inference:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: REDIS_PORT
+        - name: REDIS_DB
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: REDIS_DB
+        - name: REDIS_QUEUE
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: REDIS_QUEUE
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: video-processing-secret
+              key: postgres-user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: video-processing-secret
+              key: postgres-password
+        - name: MODEL_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: MODEL_TYPE
+        - name: BATCH_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: BATCH_SIZE
+        - name: BATCH_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: video-processing-config
+              key: BATCH_TIMEOUT
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+            nvidia.com/gpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      runtimeClassName: nvidia
+      nodeSelector:
+        accelerator: nvidia-gpu
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
