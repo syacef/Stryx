@@ -26,8 +26,8 @@ services:
       POSTGRES_DB: safari
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -75,47 +75,47 @@ services:
           memory: 2G
 
   # Inference Service (GPU Optimized)
-  inference:
-    build:
-      context: ./inference_service
-      dockerfile: Dockerfile
-    container_name: safari-inference
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - REDIS_QUEUE=frame_queue
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=safari
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - MODEL_TYPE=dummy
-      - MODEL_CHECKPOINT=
-      - BATCH_SIZE=8
-      - BATCH_TIMEOUT=2.0
-    volumes:
-      - ./inference_service:/app
-      - ./model:/app/model:ro
-      - ./models:/models:ro
-    ports:
-      - "8001:8001"
-    networks:
-      - safari-net
-    restart: unless-stopped
-    # GPU configuration
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+  # inference:
+  #   build:
+  #     context: ./inference_service
+  #     dockerfile: Dockerfile
+  #   container_name: safari-inference
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - REDIS_DB=0
+  #     - REDIS_QUEUE=frame_queue
+  #     - DB_HOST=postgres
+  #     - DB_PORT=5432
+  #     - DB_NAME=safari
+  #     - DB_USER=postgres
+  #     - DB_PASSWORD=postgres
+  #     - MODEL_TYPE=dummy
+  #     - MODEL_CHECKPOINT=
+  #     - BATCH_SIZE=8
+  #     - BATCH_TIMEOUT=2.0
+  #   volumes:
+  #     - ./inference_service:/app
+  #     - ./model:/app/model:ro
+  #     - ./models:/models:ro
+  #   ports:
+  #     - "8001:8001"
+  #   networks:
+  #     - safari-net
+  #   restart: unless-stopped
+  #   # GPU configuration
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
 
   # Optional: Triton Inference Server for advanced batching
   # Uncomment to use Triton instead of custom batching

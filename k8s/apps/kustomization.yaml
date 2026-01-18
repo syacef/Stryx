@@ -5,3 +5,4 @@ resources:
   - grafana.yaml
   - argocd-redis.yaml
   - argocd-video-processing.yaml
+  - argocd-nvidia.yaml
