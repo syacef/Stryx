@@ -239,6 +239,7 @@ class StreamWorker:
             # Create frame message
             message = {
                 "stream_id": stream_id,
+                "video_id": stream_id,
                 "frame_id": frame_id,
                 "timestamp": timestamp,
                 "frame_number": frame_count,
