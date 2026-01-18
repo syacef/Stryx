@@ -18,6 +18,7 @@ from collections import Counter
 
 from model.ssl.tinyvit import DistilledTinyViT
 from dataset.supervised_dataset import SafariSupervisedDataset
+from dataset.bbox_transforms import BboxAwareCrop, BboxAwareTransform
 from compute_class_weights import compute_class_weights
 
 
@@ -159,15 +160,20 @@ if __name__ == "__main__":
     
     # Prepare dataset with augmentation
     print("[2/5] Loading dataset...")
-    train_transform = transforms.Compose([
-        transforms.Resize(256, interpolation=transforms.InterpolationMode.BICUBIC),
-        transforms.RandomCrop(224),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
     
+    # BboxAware training transform: 70% bbox-focused crop, 30% random
+    bbox_crop = BboxAwareCrop(output_size=224, bbox_prob=0.7, margin_range=(1.2, 2.0))
+    train_transform = BboxAwareTransform(
+        bbox_crop=bbox_crop,
+        additional_transforms=transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+    )
+    
+    # Validation transform: standard center crop (no bbox awareness)
     val_transform = transforms.Compose([
         transforms.Resize(256, interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.CenterCrop(224),
@@ -175,11 +181,13 @@ if __name__ == "__main__":
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     
+    # Create full dataset with bbox-aware training transform
     full_dataset = SafariSupervisedDataset(
         "./data/sa_fari_train_ext.json",
         "./data",
         "./data/labels.txt",
-        transform=train_transform
+        transform=train_transform,
+        bbox_json_path="src/model/data/annotated/train/sa_fari_train.json"
     )
     
     # Split into train/val (80/20)
@@ -191,12 +199,13 @@ if __name__ == "__main__":
         generator=torch.Generator().manual_seed(42)
     )
     
-    # Create validation dataset with different transform
+    # Create validation dataset with different transform (standard center crop)
     val_dataset = SafariSupervisedDataset(
         "./data/sa_fari_train_ext.json",
         "./data",
         "./data/labels.txt",
-        transform=val_transform
+        transform=val_transform,
+        bbox_json_path="src/model/data/annotated/train/sa_fari_train.json"
     )
     val_dataset = torch.utils.data.Subset(val_dataset, val_dataset_temp.indices)
     
