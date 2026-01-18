@@ -7,15 +7,19 @@ and early stopping to avoid overfitting.
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, WeightedRandomSampler
 from torchvision import transforms
 import os
+import json
 from tqdm import tqdm
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score
+from collections import Counter
 
 from model.ssl.tinyvit import DistilledTinyViT
 from dataset.supervised_dataset import SafariSupervisedDataset
+from dataset.bbox_transforms import BboxAwareCrop, BboxAwareTransform
+from compute_class_weights import compute_class_weights
 
 
 class LinearProbeClassifier(nn.Module):
@@ -156,15 +160,20 @@ if __name__ == "__main__":
     
     # Prepare dataset with augmentation
     print("[2/5] Loading dataset...")
-    train_transform = transforms.Compose([
-        transforms.Resize(256, interpolation=transforms.InterpolationMode.BICUBIC),
-        transforms.RandomCrop(224),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
     
+    # BboxAware training transform: 70% bbox-focused crop, 30% random
+    bbox_crop = BboxAwareCrop(output_size=224, bbox_prob=0.7, margin_range=(1.2, 2.0))
+    train_transform = BboxAwareTransform(
+        bbox_crop=bbox_crop,
+        additional_transforms=transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+    )
+    
+    # Validation transform: standard center crop (no bbox awareness)
     val_transform = transforms.Compose([
         transforms.Resize(256, interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.CenterCrop(224),
@@ -172,11 +181,13 @@ if __name__ == "__main__":
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     
+    # Create full dataset with bbox-aware training transform
     full_dataset = SafariSupervisedDataset(
         "./data/sa_fari_train_ext.json",
         "./data",
         "./data/labels.txt",
-        transform=train_transform
+        transform=train_transform,
+        bbox_json_path="src/model/data/annotated/train/sa_fari_train.json"
     )
     
     # Split into train/val (80/20)
@@ -188,19 +199,65 @@ if __name__ == "__main__":
         generator=torch.Generator().manual_seed(42)
     )
     
-    # Create validation dataset with different transform
+    # Create validation dataset with different transform (standard center crop)
     val_dataset = SafariSupervisedDataset(
         "./data/sa_fari_train_ext.json",
         "./data",
         "./data/labels.txt",
-        transform=val_transform
+        transform=val_transform,
+        bbox_json_path="src/model/data/annotated/train/sa_fari_train.json"
     )
     val_dataset = torch.utils.data.Subset(val_dataset, val_dataset_temp.indices)
     
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+    # Load class weights for imbalanced dataset
+    print("Loading class weights...")
+    weights_file = "class_weights.json"
+    
+    if not os.path.exists(weights_file):
+        print(f"⚠ {weights_file} not found. Computing class weights...")
+        compute_class_weights(
+            json_path="./data/sa_fari_train_ext.json",
+            data_root="./data",
+            output_file=weights_file
+        )
+        print(f"✓ Class weights computed and saved to {weights_file}\n")
+    
+    with open(weights_file, "r") as f:
+        weights_data = json.load(f)
+    
+    # Create class weights tensor for loss function
+    class_weights_dict = weights_data["class_weights"]
+    # Convert string keys to int and create ordered tensor
+    max_class_id = max(int(k) for k in class_weights_dict.keys())
+    class_weights_tensor = torch.ones(max_class_id + 1)  # Default weight 1.0
+    for class_id_str, weight in class_weights_dict.items():
+        class_weights_tensor[int(class_id_str)] = weight
+    class_weights_tensor = class_weights_tensor.to(DEVICE)
+    
+    # Compute sample weights for WeightedRandomSampler
+    train_labels = [full_dataset.valid_samples[idx]["label"] for idx in train_dataset.indices]
+    label_counts = Counter(train_labels)
+    sample_weights = [1.0 / label_counts[label] for label in train_labels]
+    sample_weights_tensor = torch.DoubleTensor(sample_weights)
+    
+    # Create weighted sampler
+    weighted_sampler = WeightedRandomSampler(
+        weights=sample_weights_tensor,
+        num_samples=len(sample_weights_tensor),
+        replacement=True
+    )
+    
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=BATCH_SIZE, 
+        sampler=weighted_sampler,  # Use weighted sampler instead of shuffle
+        num_workers=4
+    )
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=4)
     
-    print(f"✓ Train: {len(train_dataset)} samples, Val: {len(val_dataset)} samples\n")
+    print(f"✓ Train: {len(train_dataset)} samples, Val: {len(val_dataset)} samples")
+    print(f"✓ Loaded weights for {len(class_weights_dict)} classes")
+    print(f"✓ Train set has {len(label_counts)} unique classes\n")
     
     # Create classifier
     print("[3/5] Creating classifier...")
@@ -214,8 +271,8 @@ if __name__ == "__main__":
     trainable_params = sum(p.numel() for p in classifier.parameters() if p.requires_grad)
     print(f"✓ Classifier created with {trainable_params:,} trainable parameters\n")
     
-    # Training setup
-    criterion = nn.CrossEntropyLoss()
+    # Training setup with weighted loss
+    criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
     optimizer = torch.optim.AdamW(classifier.parameters(), lr=LEARNING_RATE, weight_decay=0.01)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='max', factor=0.5, patience=5
