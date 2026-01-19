@@ -4,3 +4,4 @@ resources:
   - ingestion-service
   - video-processing-base
   - svc-relay
+  - port-front

@@ -2,10 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: svc-relay
+  namespace: video-processing
   labels:
     app: svc-relay
 spec:
-  replicas: 3
   selector:
     matchLabels:
       app: svc-relay
