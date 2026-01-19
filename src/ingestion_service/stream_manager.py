@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Optional
 from datetime import datetime
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,8 @@ class StreamManager:
         latitude: Optional[float] = None,
         longitude: Optional[float] = None,
         country: Optional[str] = None,
-        continent: Optional[str] = None
+        continent: Optional[str] = None,
+        source : str = "direct"
     ) -> bool:
         stream_key = f"{self.STREAM_PREFIX}{stream_id}"
         
@@ -44,6 +46,7 @@ class StreamManager:
             "country": country,
             "continent": continent,
             "status": "registered",
+            "source": source,
             "created_at": datetime.now().isoformat(),
             "frame_count": 0,
             "last_frame_at": None,
@@ -64,6 +67,16 @@ class StreamManager:
             logger.warning(f"Stream {stream_id} not found")
             return False
         
+        source = self.get_stream_info(stream_id).get("source", False)
+        if source == "relay":
+            try:
+                response = requests.delete(f"{relay_url}/relay/stop", params={"stream_id": stream_id})
+                if response.status_code != 200:
+                    logger.error(f"Failed to stop relay for stream {stream_id}: {response.text}")
+            except Exception as e:
+                logger.error(f"Error stopping relay for stream {stream_id}: {e}")
+                return False
+
         self.redis.delete(stream_key)
         
         self.redis.srem(self.STREAM_LIST_KEY, stream_id)

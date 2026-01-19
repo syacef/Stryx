@@ -7,3 +7,5 @@ pydantic==2.5.3
 python-multipart==0.0.6
 reverse_geocoder==1.5.1
 pycountry-convert==0.7.2
+requests==2.31.0
+httpx==0.28.1

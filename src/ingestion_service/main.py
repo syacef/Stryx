@@ -5,6 +5,10 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 import uvicorn
+from pathlib import Path
+from fastapi import UploadFile, File, Form
+import shutil
+import httpx
 
 from config import REDIS_HOST, REDIS_PORT, REDIS_DB, API_HOST, API_PORT
 from models import (
@@ -29,17 +33,18 @@ worker_manager = None
 redis_client = None
 local_worker = None
 
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+RELAY_SERVICE_URL = os.getenv("RELAY_SERVICE_URL", "http://svc-relay:8000")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
     global stream_manager, worker_manager, redis_client, local_worker
     
-    # Startup
     logger.info("Starting Stream Ingestion Service...")
     redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
     
-    # Generate unique worker ID for this pod
     pod_name = os.getenv("POD_NAME", f"pod-{uuid.uuid4().hex[:8]}")
     worker_id = f"worker-{pod_name}"
     
@@ -65,7 +70,6 @@ async def lifespan(app: FastAPI):
     stream_manager.cleanup()
 
 
-# Initialize FastAPI app
 app = FastAPI(
     title="Stream Ingestion Service",
     version="2.0.0",
@@ -112,84 +116,122 @@ async def health():
 @app.post("/streams/register", response_model=StreamResponse)
 async def register_stream(request: StreamRegisterRequest):
     try:
-        # Generate unique stream ID
         stream_id = request.stream_id or f"stream_{uuid.uuid4().hex[:12]}"
+        final_rtsp_url = request.rtsp_url
+
+        if request.rtsp_url.startswith(('http://', 'https://')):
+            logger.info(f"Detected HTTP source for {stream_id}. Requesting relay...")
+            
+            async with httpx.AsyncClient() as client:
+                relay_response = await client.post(
+                    f"{RELAY_SERVICE_URL}/relay/start",
+                    params={
+                        "stream_id": stream_id,
+                        "source_url": request.rtsp_url
+                    },
+                    timeout=15.0
+                )
+            
+            if relay_response.status_code != 200:
+                logger.error(f"Relay error: {relay_response.text}")
+                raise HTTPException(
+                    status_code=502, 
+                    detail="Relay service failed to convert HTTP source to RTSP"
+                )
+            
+            relay_data = relay_response.json()
+            final_rtsp_url = relay_data.get("relay_url")
         
-        # Validate RTSP URL
-        if not request.rtsp_url.startswith(('rtsp://', 'rtsps://')):
+        if not final_rtsp_url.startswith(('rtsp://', 'rtsps://')):
             raise HTTPException(
                 status_code=400, 
-                detail="Invalid RTSP URL. Must start with rtsp:// or rtsps://"
+                detail="Source must be RTSP or a valid HTTP MP4 link"
             )
-            
-        # Enrich location data if needed
-        country = request.country
-        continent = request.continent
-        
+
+        country, continent = request.country, request.continent
         if request.latitude is not None and request.longitude is not None:
             if not country or not continent:
                 try:
                     calc_country, calc_continent = get_location_details(request.latitude, request.longitude)
-                    country = country or calc_country
-                    continent = continent or calc_continent
+                    country, continent = calc_country, calc_continent
                 except Exception as e:
-                    logger.warning(f"Failed to calculate location details: {e}")
-        
-        # Register stream
+                    logger.warning(f"Geolocation failed: {e}")
+
         result = stream_manager.register_stream(
             stream_id=stream_id,
-            rtsp_url=request.rtsp_url,
+            rtsp_url=final_rtsp_url, # Now uses the relayed URL if it was HTTP
             name=request.name,
-            fps=request.fps,
-            resolution=request.resolution,
-            latitude=request.latitude,
-            longitude=request.longitude,
+            source="direct" if request.rtsp_url.startswith(('rtsp://', 'rtsps://')) else "relay",
             country=country,
             continent=continent
         )
         
         if not result:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Stream {stream_id} already exists"
-            )
+            raise HTTPException(status_code=400, detail="Stream already exists")
         
         worker_id = worker_manager.assign_worker_to_stream(stream_id)
         
-        logger.info(f"Stream {stream_id} registered and assigned to worker {worker_id}")
-        
         return StreamResponse(
             stream_id=stream_id,
-            rtsp_url=request.rtsp_url,
+            rtsp_url=final_rtsp_url,
             name=request.name,
             status="registered",
             worker_id=worker_id,
-            latitude=request.latitude,
-            longitude=request.longitude,
             country=country,
             continent=continent
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Failed to register stream: {e}")
+        logger.error(f"Failed to register: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/streams/upload")
+async def upload_video(
+    video: UploadFile = File(...),
+    name: str = Form(...)
+):
+    try:
+        file_id = uuid.uuid4().hex[:8]
+        file_path = UPLOAD_DIR / f"{file_id}_{video.filename}"
+        
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(video.file, buffer)
+
+        internal_rtsp_url = f"rtsp://localhost:8554/{file_id}"
+
+        stream_id = f"stream_{file_id}"
+        result = stream_manager.register_stream(
+            stream_id=stream_id,
+            rtsp_url=internal_rtsp_url,
+            name=name,
+            source="relay" # Tagging as relay for the frontend
+        )
+
+        if not result:
+            raise HTTPException(status_code=400, detail="Stream registration failed")
+
+        worker_id = worker_manager.assign_worker_to_stream(stream_id)
+
+        return {
+            "streamId": stream_id,
+            "rtspUrl": internal_rtsp_url,
+            "status": "success",
+            "worker_id": worker_id
+        }
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/streams/{stream_id}", response_model=StreamDeleteResponse)
 async def delete_stream(stream_id: str):
     try:
-        # Get stream info before deletion
         stream_info = stream_manager.get_stream_info(stream_id)
         
         if not stream_info:
             raise HTTPException(status_code=404, detail=f"Stream {stream_id} not found")
         
-        # Unassign worker
         worker_manager.unassign_worker_from_stream(stream_id)
         
-        # Delete stream
         result = stream_manager.delete_stream(stream_id)
         
         if not result:
@@ -239,7 +281,6 @@ async def get_worker_info(worker_id: str):
     if not worker_info:
         raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found")
     return worker_info
-
 
 if __name__ == "__main__":
     uvicorn.run(app, host=API_HOST, port=API_PORT)
