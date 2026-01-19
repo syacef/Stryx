@@ -10,3 +10,4 @@ resources:
   - redis-insight.yaml
   - nvidia.yaml
   - traefik.yaml
+  - timescaledb.yaml

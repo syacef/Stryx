@@ -25,6 +25,8 @@ spec:
         envFrom:
         - configMapRef:
             name: inference-service-config
+        - secretRef:
+            name: inference-service-secret
         resources:
           requests:
             memory: "4Gi"
