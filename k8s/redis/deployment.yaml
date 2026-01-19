@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: redis
-        image: redis:7-alpine
+        image: redis:8-alpine3.22
         ports:
         - containerPort: 6379
           name: redis
@@ -30,11 +30,11 @@ spec:
           mountPath: /data
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
             memory: "512Mi"
             cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2"
         livenessProbe:
           exec:
             command:
