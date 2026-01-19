@@ -3,6 +3,7 @@ import logging
 import time
 import threading
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -67,11 +68,16 @@ app = FastAPI(
     description="GPU-optimized inference service for video frame processing",
     lifespan=lifespan
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
-    """Root endpoint - basic service info."""
     return {
         "service": "Inference Service",
         "status": "running",
@@ -82,7 +88,6 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Detailed health check endpoint."""
     try:
         redis_connected = redis_client.ping()
         queue_length = redis_client.llen(REDIS_QUEUE)
@@ -112,9 +117,8 @@ async def health():
         raise HTTPException(status_code=503, detail=str(e))
 
 
-@app.post("/process-batch")
+@app.post("/inference/process-batch")
 async def process_batch_endpoint():
-    """Manually trigger batch processing."""
     try:
         count = process_batch(redis_client, model)
         return {
@@ -126,9 +130,8 @@ async def process_batch_endpoint():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/stats")
+@app.get("/inference/stats")
 async def get_stats_endpoint():
-    """Get processing statistics."""
     try:
         stats = get_stats()
         return stats
@@ -138,7 +141,6 @@ async def get_stats_endpoint():
 
 
 def background_worker():
-    """Background worker thread for processing batches."""
     global running, redis_client, model
     
     logger.info("Background worker started")
