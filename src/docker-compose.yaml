@@ -56,6 +56,7 @@ services:
       - MOTION_THRESHOLD=25.0
       - MIN_MOTION_AREA=500
       - FRAME_SKIP=5
+      - RELAY_SERVICE_URL=http://safari-relay:8000
     volumes:
       - ./data/videos:/data/videos
       - ./ingestion_service:/app
@@ -73,6 +74,43 @@ services:
         reservations:
           cpus: '2'
           memory: 2G
+
+  relay:
+    build:
+      context: ./svc-relay
+      dockerfile: Dockerfile
+    container_name: safari-relay
+    hostname: safari-relay # force hostname for service discovery
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+    volumes:
+      - ./data/videos:/data/videos
+      - ./svc-relay:/app
+    ports:
+      - 8555:8554   # RTSP Relay Port
+    networks:
+      - safari-net
+    restart: unless-stopped
+    # CPU limits - optimize for video processing
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+  redisinsight:
+    image: redislabs/redisinsight:2.70
+    container_name: redisinsight
+    ports:
+      - "5540:5540"
+    networks:
+      - safari-net
 
   # Inference Service (GPU Optimized)
   # inference:

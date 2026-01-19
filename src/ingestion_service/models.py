@@ -57,6 +57,7 @@ class StreamResponse(BaseModel):
     """Response model for stream registration."""
     stream_id: str = Field(..., description="Stream identifier")
     rtsp_url: str = Field(..., description="RTSP URL")
+    public_url: str = Field(..., description="Publicly accessible stream URL")
     name: Optional[str] = Field(None, description="Stream name")
     status: str = Field(..., description="Stream status", example="registered")
     worker_id: str = Field(..., description="Assigned worker ID")

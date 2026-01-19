@@ -1,12 +1,10 @@
 fastapi==0.128.0
 uvicorn[standard]==0.40.0
-opencv-python-headless==4.13.0.90
 redis==7.1.0
-numpy==2.4.1
 pydantic==2.12.5
 python-multipart==0.0.21
-reverse_geocoder==1.5.1
 pycountry-convert==0.7.2
-pydantic-settings==2.12.0
+pydantic-settings===2.12.0
 requests==2.31.0
 httpx==0.28.1
+yt-dlp==2025.12.8

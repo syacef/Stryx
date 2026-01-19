@@ -6,22 +6,21 @@ from typing import Optional
 from datetime import datetime
 from collections import defaultdict
 
-from config import MAX_STREAMS_PER_WORKER, WORKER_HEARTBEAT_INTERVAL
-
 logger = logging.getLogger(__name__)
-
 
 class WorkerManager:    
     WORKER_PREFIX = "worker:"
     WORKER_LIST_KEY = "workers:active"
     WORKER_STREAMS_PREFIX = "worker_streams:"
     ORPHANED_STREAMS_KEY = "streams:orphaned"
-    
-    def __init__(self, redis_client, stream_manager):
+
+    def __init__(self, redis_client, stream_manager, max_streams_per_worker: int, worker_heartbeat_interval: int):
         self.redis = redis_client
         self.stream_manager = stream_manager
         self.running = False
         self.monitor_thread = None
+        self.max_streams_per_worker = max_streams_per_worker
+        self.worker_heartbeat_interval = worker_heartbeat_interval
         logger.info("WorkerManager initialized")
     
     def start(self):
@@ -60,12 +59,10 @@ class WorkerManager:
         
         worker_key = f"{self.WORKER_PREFIX}{worker_id}"
         self.redis.set(worker_key, json.dumps(worker_data))
-        self.redis.expire(worker_key, WORKER_HEARTBEAT_INTERVAL * 3)
+        self.redis.expire(worker_key, self.worker_heartbeat_interval * 3)
         
-        # Add to active workers
         self.redis.sadd(self.WORKER_LIST_KEY, worker_id)
         
-        # Initialize empty stream set for worker
         worker_streams_key = f"{self.WORKER_STREAMS_PREFIX}{worker_id}"
         if not self.redis.exists(worker_streams_key):
             self.redis.delete(worker_streams_key)  # Ensure clean state
@@ -75,7 +72,6 @@ class WorkerManager:
     def unregister_worker(self, worker_id: str):
         logger.info(f"Unregistering worker {worker_id}")
         
-        # Get worker's streams and mark as orphaned
         worker_streams_key = f"{self.WORKER_STREAMS_PREFIX}{worker_id}"
         stream_ids = self.redis.smembers(worker_streams_key)
         
@@ -114,16 +110,14 @@ class WorkerManager:
                 continue
             
             last_heartbeat = worker_info.get("last_heartbeat_timestamp", 0)
-            if current_time - last_heartbeat > WORKER_HEARTBEAT_INTERVAL * 3:
+            if current_time - last_heartbeat > self.worker_heartbeat_interval * 3:
                 logger.warning(f"Worker {worker_id} appears stale (no heartbeat), cleaning up")
                 self._cleanup_dead_worker(worker_id)
     
     def _cleanup_dead_worker(self, worker_id: str):
-        # Get worker's streams
         worker_streams_key = f"{self.WORKER_STREAMS_PREFIX}{worker_id}"
         stream_ids = self.redis.smembers(worker_streams_key)
         
-        # Mark streams as orphaned
         for stream_id in stream_ids:
             stream_id_str = stream_id.decode('utf-8') if isinstance(stream_id, bytes) else stream_id
             logger.info(f"Orphaning stream {stream_id_str} from dead worker {worker_id}")
@@ -131,12 +125,10 @@ class WorkerManager:
             self.stream_manager.update_worker_assignment(stream_id_str, None)
             self.stream_manager.update_stream_status(stream_id_str, "orphaned")
         
-        # Delete worker metadata
         worker_key = f"{self.WORKER_PREFIX}{worker_id}"
         self.redis.delete(worker_key)
         self.redis.delete(worker_streams_key)
         
-        # Remove from active workers
         self.redis.srem(self.WORKER_LIST_KEY, worker_id)
         
         logger.info(f"Dead worker {worker_id} cleaned up")
@@ -152,7 +144,6 @@ class WorkerManager:
         for stream_id in orphaned_streams:
             stream_id_str = stream_id.decode('utf-8') if isinstance(stream_id, bytes) else stream_id
             
-            # Check if stream still exists
             stream_info = self.stream_manager.get_stream_info(stream_id_str)
             if not stream_info:
                 logger.warning(f"Orphaned stream {stream_id_str} no longer exists, removing")
@@ -170,12 +161,10 @@ class WorkerManager:
             worker_streams_key = f"{self.WORKER_STREAMS_PREFIX}{worker_id}"
             self.redis.sadd(worker_streams_key, stream_id_str)
             
-            # Update metadata
             self._update_worker_stream_count(worker_id)
             self.stream_manager.update_worker_assignment(stream_id_str, worker_id)
             self.stream_manager.update_stream_status(stream_id_str, "registered")
             
-            # Remove from orphaned set
             self.redis.srem(self.ORPHANED_STREAMS_KEY, stream_id_str)
             
             logger.info(f"Stream {stream_id_str} recovered and assigned to worker {worker_id}")
@@ -225,17 +214,12 @@ class WorkerManager:
         
         worker_id = stream_info["worker_id"]
         
-        # Remove stream from worker
         worker_streams_key = f"{self.WORKER_STREAMS_PREFIX}{worker_id}"
         self.redis.srem(worker_streams_key, stream_id)
         
-        # Update worker metadata
-        self._update_worker_stream_count(worker_id)
-        
-        # Update stream
+        self._update_worker_stream_count(worker_id)        
         self.stream_manager.update_worker_assignment(stream_id, None)
         
-        # Remove from orphaned set if present
         self.redis.srem(self.ORPHANED_STREAMS_KEY, stream_id)
         
         logger.info(f"Stream {stream_id} unassigned from worker {worker_id}")
@@ -247,14 +231,14 @@ class WorkerManager:
             return None
         
         # Find worker with least load
-        min_load = MAX_STREAMS_PER_WORKER
+        min_load = self.max_streams_per_worker
         selected_worker = None
         
         for worker_id in worker_ids:
             worker_streams_key = f"{self.WORKER_STREAMS_PREFIX}{worker_id}"
             stream_count = self.redis.scard(worker_streams_key)
-            
-            if stream_count < MAX_STREAMS_PER_WORKER and stream_count < min_load:
+
+            if stream_count < self.max_streams_per_worker and stream_count < min_load:
                 min_load = stream_count
                 selected_worker = worker_id
         
@@ -264,7 +248,7 @@ class WorkerManager:
         worker_info = self.get_worker_info(worker_id)
         if not worker_info:
             return
-        
+
         worker_streams_key = f"{self.WORKER_STREAMS_PREFIX}{worker_id}"
         stream_count = self.redis.scard(worker_streams_key)
         
@@ -273,7 +257,7 @@ class WorkerManager:
         
         worker_key = f"{self.WORKER_PREFIX}{worker_id}"
         self.redis.set(worker_key, json.dumps(worker_info))
-        self.redis.expire(worker_key, WORKER_HEARTBEAT_INTERVAL * 3)
+        self.redis.expire(worker_key, self.worker_heartbeat_interval * 3)
     
     def get_worker_info(self, worker_id: str) -> Optional[dict]:
         worker_key = f"{self.WORKER_PREFIX}{worker_id}"

@@ -1,4 +1,5 @@
 import cv2
+import os
 import json
 import logging
 import time
@@ -7,21 +8,22 @@ import threading
 from datetime import datetime
 from typing import Optional
 
-from config import REDIS_QUEUE, JPEG_QUALITY, WORKER_HEARTBEAT_INTERVAL
-
 logger = logging.getLogger(__name__)
 
 
 class StreamWorker:
-    """Worker that processes RTSP streams and extracts frames."""
     
-    def __init__(self, worker_id: str, redis_client, stream_manager):
+    def __init__(self, worker_id: str, redis_client, stream_manager, redis_queue: str, worker_heartbeat_interval: int = 30, jpeg_quality: int = 80):
         self.worker_id = worker_id
         self.redis = redis_client
         self.stream_manager = stream_manager
         self.active_streams = {}  # stream_id -> VideoCapture
         self.running = False
+        self.redis_queue = redis_queue
+        self.worker_heartbeat_interval = worker_heartbeat_interval
+        self.jpeg_quality = jpeg_quality
         self.worker_thread = None
+        self.failed_streams = {} # stream_id -> last_attempt_timestamp
         logger.info(f"Worker {worker_id} initialized")
     
     def start_async(self):
@@ -41,28 +43,29 @@ class StreamWorker:
         while self.running:
             try:
                 current_time = time.time()
-                
-                if current_time - last_heartbeat >= WORKER_HEARTBEAT_INTERVAL:
+
+                if current_time - last_heartbeat >= self.worker_heartbeat_interval:
                     self._send_heartbeat()
                     last_heartbeat = current_time
                 
-                # Get assigned streams
                 assigned_streams = self._get_assigned_streams()
                 
-                # Start new streams
                 for stream_id in assigned_streams:
                     if stream_id not in self.active_streams:
+                        # Check backoff
+                        if stream_id in self.failed_streams:
+                            last_attempt = self.failed_streams[stream_id]
+                            if current_time - last_attempt < 10: # 10 seconds backoff
+                                continue
+                        
                         self._start_stream(stream_id)
                 
-                # Stop removed streams
                 for stream_id in list(self.active_streams.keys()):
                     if stream_id not in assigned_streams:
                         self._stop_stream(stream_id)
                 
-                # Process frames from active streams
                 self._process_frames()
                 
-                # Small sleep to prevent tight loop
                 time.sleep(0.01)
 
             except Exception as e:
@@ -94,7 +97,7 @@ class StreamWorker:
                 worker_info["last_heartbeat_timestamp"] = time.time()
                 worker_info["active_stream_count"] = len(self.active_streams)
                 self.redis.set(worker_key, json.dumps(worker_info))
-                self.redis.expire(worker_key, WORKER_HEARTBEAT_INTERVAL * 3)  # TTL
+                self.redis.expire(worker_key, self.worker_heartbeat_interval * 3)  # TTL
         except Exception as e:
             logger.error(f"Error sending heartbeat: {e}")
     
@@ -122,6 +125,7 @@ class StreamWorker:
             
             # Open RTSP stream
             logger.info(f"Opening stream {stream_id}: {rtsp_url}")
+            
             cap = cv2.VideoCapture(rtsp_url)
             
             # Set buffer size to minimize latency
@@ -130,8 +134,13 @@ class StreamWorker:
             if not cap.isOpened():
                 logger.error(f"Failed to open stream {stream_id}")
                 self.stream_manager.update_stream_status(stream_id, "error")
+                self.failed_streams[stream_id] = time.time()
                 return
             
+            # Success - remove from failed_streams if present
+            if stream_id in self.failed_streams:
+                del self.failed_streams[stream_id]
+
             # Store stream info
             self.active_streams[stream_id] = {
                 "capture": cap,
@@ -145,7 +154,6 @@ class StreamWorker:
                 "prev_gray": None
             }
             
-            # Update stream status
             self.stream_manager.update_stream_status(stream_id, "active")
             
             logger.info(f"Stream {stream_id} started successfully")
@@ -163,7 +171,6 @@ class StreamWorker:
             stream_data["capture"].release()
             del self.active_streams[stream_id]
             
-            # Update stream status
             self.stream_manager.update_stream_status(stream_id, "stopped")
             
             logger.info(f"Stream {stream_id} stopped")
@@ -176,7 +183,6 @@ class StreamWorker:
         
         for stream_id, stream_data in list(self.active_streams.items()):
             try:
-                # Check if it's time to capture a frame
                 target_fps = stream_data["target_fps"]
                 frame_interval = 1.0 / target_fps
                 
@@ -205,10 +211,8 @@ class StreamWorker:
                     
                     continue
                 
-                # Reset reconnect attempts on successful read
                 stream_data["reconnect_attempts"] = 0
                 
-                # Resize if needed
                 resolution = stream_data["resolution"]
                 if resolution:
                     frame = cv2.resize(frame, resolution)
@@ -216,7 +220,6 @@ class StreamWorker:
                 # Process and send frame
                 self._send_frame(stream_id, frame, stream_data)
                 
-                # Update timing
                 stream_data["last_frame_time"] = current_time
                 stream_data["frame_count"] += 1
                 
@@ -230,18 +233,18 @@ class StreamWorker:
             motion_score = 0.0
             
             if stream_data["prev_gray"] is not None:
-                # Calculate absolute difference between current frame and previous frame
                 frame_diff = cv2.absdiff(stream_data["prev_gray"], gray)
                 motion_score = float(frame_diff.mean())
             
             stream_data["prev_gray"] = gray
             
-            # Generate unique frame ID
             frame_id = f"{stream_id}_{uuid.uuid4().hex[:8]}"
-            
-            # Encode frame to JPEG
-            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+
+            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
             frame_bytes = buffer.tobytes()
+            
+            # Cache latest frame for MJPEG streaming
+            self.redis.set(f"stream:{stream_id}:latest", frame_bytes)
             
             # Calculate timestamp
             frame_count = stream_data["frame_count"]
@@ -268,9 +271,8 @@ class StreamWorker:
             }
             
             # Push to Redis queue
-            self.redis.rpush(REDIS_QUEUE, json.dumps(message))
-            
-            # Update stream metadata
+            self.redis.rpush(self.redis_queue, json.dumps(message))
+
             self.stream_manager.increment_frame_count(stream_id)
             
             logger.debug(f"Frame {frame_id} from stream {stream_id} sent to queue")
