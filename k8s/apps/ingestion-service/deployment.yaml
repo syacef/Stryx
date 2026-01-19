@@ -22,47 +22,10 @@ spec:
         ports:
         - containerPort: 8000
           name: http
+        envFrom:
+        - configMapRef:
+            name: ingestion-service-config
         env:
-        - name: REDIS_HOST
-          valueFrom:
-            configMapKeyRef:
-              name: video-processing-config
-              key: REDIS_HOST
-        - name: REDIS_PORT
-          valueFrom:
-            configMapKeyRef:
-              name: video-processing-config
-              key: REDIS_PORT
-        - name: REDIS_DB
-          valueFrom:
-            configMapKeyRef:
-              name: video-processing-config
-              key: REDIS_DB
-        - name: REDIS_QUEUE
-          valueFrom:
-            configMapKeyRef:
-              name: video-processing-config
-              key: REDIS_QUEUE
-        - name: MOTION_THRESHOLD
-          valueFrom:
-            configMapKeyRef:
-              name: video-processing-config
-              key: MOTION_THRESHOLD
-        - name: MIN_MOTION_AREA
-          valueFrom:
-            configMapKeyRef:
-              name: video-processing-config
-              key: MIN_MOTION_AREA
-        - name: FRAME_SKIP
-          valueFrom:
-            configMapKeyRef:
-              name: video-processing-config
-              key: FRAME_SKIP
-        - name: JPEG_QUALITY
-          valueFrom:
-            configMapKeyRef:
-              name: video-processing-config
-              key: JPEG_QUALITY
         - name: VIDEO_BUCKET
           value: "/data/videos"
         volumeMounts:

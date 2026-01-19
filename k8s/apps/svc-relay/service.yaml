@@ -11,8 +11,10 @@ spec:
     app: svc-relay
   ports:
     - protocol: TCP
+      name: http
       port: 8000
       targetPort: 8000
     - protocol: TCP
+      name: rtsp
       port: 8554
       targetPort: 8554

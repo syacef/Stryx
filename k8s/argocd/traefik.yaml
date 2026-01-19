@@ -41,12 +41,11 @@ spec:
             exposedPort: 80
             nodePort: 30000
             protocol: TCP
-            # Automatic HTTP to HTTPS redirection
-            redirections:
-              entryPoint:
-                to: websecure
-                scheme: https
-                permanent: true
+            # redirections:
+            #   entryPoint:
+            #     to: websecure
+            #     scheme: https
+            #     permanent: true
 
           websecure:
             port: 443
@@ -54,7 +53,13 @@ spec:
             exposedPort: 443
             nodePort: 30001
             protocol: TCP
-            # Note: TLS configuration is usually handled at the Ingress/Gateway level
+
+          rtsp:
+            port: 8554
+            expose: true
+            exposedPort: 8554
+            nodePort: 30002
+            protocol: TCP
 
         api:
           dashboard: true
@@ -69,7 +74,6 @@ spec:
             middlewares:
               - name: dashboard-auth
 
-        # Providers configuration
         providers:
           kubernetesIngress:
             enabled: true
@@ -80,7 +84,6 @@ spec:
           kubernetesGateway:
             enabled: false
 
-        # Custom Resources: Secret and Middleware for Dashboard Auth
         extraObjects:
           - apiVersion: v1
             kind: Secret
@@ -99,7 +102,6 @@ spec:
               basicAuth:
                 secret: dashboard-auth-secret
 
-        # Observability
         logs:
           general:
             level: INFO

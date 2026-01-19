@@ -20,17 +20,14 @@ spec:
         ports:
         - containerPort: 8000 # FastAPI
         - containerPort: 8554 # RTSP Stream Port
+        envFrom:
+        - configMapRef:
+            name: svc-relay-config
         env:
         - name: POD_IP
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
-        - name: REDIS_HOST
-          value: "redis.redis.svc.cluster.local"
-        - name: REDIS_PORT
-          value: "6379"
-        - name: RTSP_PORT
-          value: "8554"
         volumeMounts:
         - name: video-storage
           mountPath: /tmp

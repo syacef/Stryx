@@ -9,3 +9,4 @@ resources:
   - redis.yaml
   - redis-insight.yaml
   - nvidia.yaml
+  - traefik.yaml

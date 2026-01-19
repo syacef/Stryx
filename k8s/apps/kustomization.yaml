@@ -2,6 +2,9 @@ kind: Kustomization
 resources:
   - inference-service
   - ingestion-service
-  - video-processing-base
   - svc-relay
   - port-front
+  - namespace.yaml
+  - pvc.yaml
+  - rbac.yaml
+  - secret.yaml
