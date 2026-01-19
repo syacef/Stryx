@@ -44,10 +44,10 @@ spec:
           targetPort: 3000
 
         ingress:
-          enabled: false
-          ingressClassName: nginx
+          enabled: true
+          ingressClassName: traefik
           hosts:
-            - grafana.example.com
+            - grafana.localhost
           path: /
 
         # 4. Automated Datasource Setup

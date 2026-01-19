@@ -20,7 +20,7 @@ spec:
         image: video-inference:latest
         imagePullPolicy: Never
         ports:
-        - containerPort: 8001
+        - containerPort: 8000
           name: http
         envFrom:
         - configMapRef:
@@ -37,13 +37,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8001
+            port: 8000
           initialDelaySeconds: 60
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 8001
+            port: 8000
           initialDelaySeconds: 30
           periodSeconds: 5
       runtimeClassName: nvidia

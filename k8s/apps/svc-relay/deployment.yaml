@@ -16,6 +16,7 @@ spec:
     spec:
       containers:
       - name: svc-relay
+        imagePullPolicy: Never
         image: svc-relay:latest
         ports:
         - containerPort: 8000 # FastAPI
@@ -31,6 +32,12 @@ spec:
         volumeMounts:
         - name: video-storage
           mountPath: /tmp
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
       volumes:
       - name: video-storage
         emptyDir: {} # Or use a PVC if files persist across restarts

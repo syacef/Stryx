@@ -20,12 +20,13 @@ spec:
       labels:
         app: port-front
     spec:
+      serviceAccountName: default
       # imagePullSecrets:
       #   - name: pull-secret
       containers:
         - name: port-front
           image: port-front:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - containerPort: 8080
               name: http
