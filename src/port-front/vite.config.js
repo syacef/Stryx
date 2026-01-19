@@ -12,4 +12,44 @@ export default defineConfig({
     }),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/streams': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            const cookies = proxyRes.headers['set-cookie'];
+            if (cookies) {
+              proxyRes.headers['set-cookie'] = cookies.map((cookie) =>
+                cookie
+                  .replace(/Domain=[^;]+/i, 'Domain=localhost')
+                  .replace(/; *Secure/gi, '')
+              );
+            }
+          });
+        },
+      },
+      '/workers': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: true,
+        cookieDomainRewrite: 'localhost',
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            const cookies = proxyRes.headers['set-cookie'];
+            if (cookies) {
+              proxyRes.headers['set-cookie'] = cookies.map((cookie) =>
+                cookie
+                  .replace(/Domain=[^;]+/i, 'Domain=localhost')
+                  .replace(/; *Secure/gi, '')
+              );
+            }
+          });
+        },
+      },
+    },
+  },
 })

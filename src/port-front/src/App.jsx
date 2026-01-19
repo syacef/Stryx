@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Sprout, Eye, Plus, Trees, Activity } from 'lucide-react';
+import { Eye, Plus, Trees, Activity } from 'lucide-react';
 import FeedCard from './FeedCard';
 import RegistrationForm from './RegistrationForm'
 
-const API_CONFIG = {
-  relayService: 'http://localhost:3001',
-  ingestionService: 'http://localhost:3002'
+export const API_CONFIG = {
+  ingestionService: import.meta.env.VITE_INGESTION_SERVICE,
+  isDev: import.meta.env.DEV,
 };
 
 function App() {
@@ -31,10 +31,10 @@ function App() {
   const fetchFeeds = async () => {
     setLoadingFeeds(true);
     try {
-      const response = await fetch(`${API_CONFIG.ingestionService}/feeds`);
+      const response = await fetch(`${API_CONFIG.ingestionService}/streams`);
       if (!response.ok) throw new Error('Failed to fetch feeds');
       const data = await response.json();
-      setFeeds(data.feeds || data || []);
+      setFeeds(data || []);
     } catch (error) {
       console.error('Error fetching feeds:', error);
       setFeeds([]);
@@ -45,7 +45,7 @@ function App() {
 
   const deleteFeed = async (feedId) => {
     try {
-      const response = await fetch(`${API_CONFIG.ingestionService}/feeds/${feedId}`, {
+      const response = await fetch(`${API_CONFIG.ingestionService}/streams/${feedId}`, {
         method: 'DELETE'
       });
       if (!response.ok) throw new Error('Failed to delete feed');
@@ -79,7 +79,7 @@ function App() {
     }
 
     setStatus('uploading');
-    setMessage('Uploading video to relay service...');
+    setMessage('Uploading video to ingestion service...');
     setProgress(0);
 
     try {
@@ -87,42 +87,20 @@ function App() {
       formData.append('video', file);
       formData.append('name', videoName);
 
-      const uploadResponse = await fetch(`${API_CONFIG.relayService}/upload`, {
+      const response = await fetch(`${API_CONFIG.ingestionService}/streams/upload`, {
         method: 'POST',
         body: formData
       });
 
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Service error: ${response.statusText}`);
       }
 
-      const uploadResult = await uploadResponse.json();
-      const relayRtspUrl = uploadResult.rtspUrl;
-
-      setProgress(50);
-      setMessage('Creating relay and registering stream...');
-
-      const registerResponse = await fetch(`${API_CONFIG.ingestionService}/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: videoName,
-          rtspUrl: relayRtspUrl,
-          source: 'relay'
-        })
-      });
-
-      if (!registerResponse.ok) {
-        throw new Error(`Registration failed: ${registerResponse.statusText}`);
-      }
-
-      const registerResult = await registerResponse.json();
+      const result = await response.json();
 
       setProgress(100);
       setStatus('success');
-      setMessage(`Video registered successfully! Stream ID: ${registerResult.streamId || 'N/A'}`);
+      setMessage(`Video processed successfully! Stream ID: ${result.streamId || result.id || 'N/A'}`);
 
       setTimeout(() => {
         setFile(null);
@@ -156,7 +134,7 @@ function App() {
     setMessage('Registering RTSP stream...');
 
     try {
-      const response = await fetch(`${API_CONFIG.ingestionService}/register`, {
+      const response = await fetch(`${API_CONFIG.ingestionService}/streams/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -190,11 +168,43 @@ function App() {
     }
   };
 
+  const registerSource = async (url, sourceLabel) => {
+    setStatus('registering');
+    setMessage(`Connecting to ${sourceLabel}...`);
+
+    try {
+      const response = await fetch(`${API_CONFIG.ingestionService}/streams/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: videoName,
+          rtsp_url: url, // Backend handles relaying if this is http/https
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Registration failed');
+      }
+
+      const result = await response.json();
+      setStatus('success');
+      setMessage(`Stream active! ID: ${result.stream_id}`);
+
+      // Reset fields...
+    } catch (error) {
+      setStatus('error');
+      setMessage(error.message);
+    }
+  };
+
   const handleSubmit = async () => {
     if (sourceType === 'mp4') {
       await uploadMP4AndRegister();
+    } else if (sourceType === 'http') {
+      await registerSource(httpUrl, 'HTTP Link');
     } else {
-      await registerRTSP();
+      await registerSource(rtspUrl, 'RTSP Stream');
     }
   };
 
@@ -277,6 +287,12 @@ function App() {
               setSourceType={setSourceType}
               videoName={videoName}
               setVideoName={setVideoName}
+              httpUrl={httpUrl}
+              setHttpUrl={setHttpUrl}
+              rtspUrl={rtspUrl}
+              setRtspUrl={setRtspUrl}
+              file={file}
+              handleFileChange={handleFileChange}
               onSubmit={handleSubmit}
             />
           </div>
