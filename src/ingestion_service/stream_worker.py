@@ -1,4 +1,5 @@
 import cv2
+import os
 import json
 import logging
 import time
@@ -22,6 +23,7 @@ class StreamWorker:
         self.worker_heartbeat_interval = worker_heartbeat_interval
         self.jpeg_quality = jpeg_quality
         self.worker_thread = None
+        self.failed_streams = {} # stream_id -> last_attempt_timestamp
         logger.info(f"Worker {worker_id} initialized")
     
     def start_async(self):
@@ -50,6 +52,12 @@ class StreamWorker:
                 
                 for stream_id in assigned_streams:
                     if stream_id not in self.active_streams:
+                        # Check backoff
+                        if stream_id in self.failed_streams:
+                            last_attempt = self.failed_streams[stream_id]
+                            if current_time - last_attempt < 10: # 10 seconds backoff
+                                continue
+                        
                         self._start_stream(stream_id)
                 
                 for stream_id in list(self.active_streams.keys()):
@@ -117,6 +125,7 @@ class StreamWorker:
             
             # Open RTSP stream
             logger.info(f"Opening stream {stream_id}: {rtsp_url}")
+            
             cap = cv2.VideoCapture(rtsp_url)
             
             # Set buffer size to minimize latency
@@ -125,8 +134,13 @@ class StreamWorker:
             if not cap.isOpened():
                 logger.error(f"Failed to open stream {stream_id}")
                 self.stream_manager.update_stream_status(stream_id, "error")
+                self.failed_streams[stream_id] = time.time()
                 return
             
+            # Success - remove from failed_streams if present
+            if stream_id in self.failed_streams:
+                del self.failed_streams[stream_id]
+
             # Store stream info
             self.active_streams[stream_id] = {
                 "capture": cap,
@@ -228,6 +242,9 @@ class StreamWorker:
 
             _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
             frame_bytes = buffer.tobytes()
+            
+            # Cache latest frame for MJPEG streaming
+            self.redis.set(f"stream:{stream_id}:latest", frame_bytes)
             
             # Calculate timestamp
             frame_count = stream_data["frame_count"]

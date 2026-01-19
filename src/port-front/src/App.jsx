@@ -269,7 +269,11 @@ function App() {
               {/* Modern Video Player Placeholder */}
               <div className="aspect-video bg-stone-950 rounded-3xl border border-stone-800 overflow-hidden flex items-center justify-center group relative">
                 {selectedFeed ? (
-                  <video src={selectedFeed.public_url} controls className="w-full h-full object-cover" />
+                  selectedFeed.public_url.endsWith('.mp4') ? (
+                    <video src={selectedFeed.public_url} controls className="w-full h-full object-cover" />
+                  ) : (
+                    <img src={selectedFeed.public_url} alt="Stream" className="w-full h-full object-cover" />
+                  )
                 ) : (
                   <div className="text-center">
                     <Activity className="mx-auto text-stone-800 mb-4 animate-pulse" size={48} />

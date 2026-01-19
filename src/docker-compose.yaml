@@ -90,7 +90,7 @@ services:
       - ./data/videos:/data/videos
       - ./svc-relay:/app
     ports:
-      - 8554:8554   # RTSP Relay Port
+      - 8555:8554   # RTSP Relay Port
     networks:
       - safari-net
     restart: unless-stopped

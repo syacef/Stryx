@@ -2,7 +2,9 @@ import os
 import redis
 import logging
 import uuid
+import asyncio
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import uvicorn
 from pathlib import Path
@@ -77,6 +79,38 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+async def generate_mjpeg(stream_id: str):
+    """Generator for MJPEG stream from Redis"""
+    while True:
+        try:
+            if redis_client:
+                frame_data = redis_client.get(f"stream:{stream_id}:latest")
+                if frame_data:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
+            await asyncio.sleep(0.05) # ~20 FPS cap
+        except Exception as e:
+            logger.error(f"Error generating MJPEG for {stream_id}: {e}")
+            await asyncio.sleep(1)
+
+@app.get("/streams/{stream_id}/mjpeg")
+async def stream_mjpeg(stream_id: str):
+    """Serve MJPEG stream for a given stream ID"""
+    return StreamingResponse(
+        generate_mjpeg(stream_id), 
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
 @app.get("/")
 async def root():
     try:
@@ -117,7 +151,11 @@ async def register_stream(request: StreamRegisterRequest):
     try:
         stream_id = request.stream_id or f"stream_{uuid.uuid4().hex[:12]}"
         final_rtsp_url = request.rtsp_url
-        public_url = request.rtsp_url
+        
+        # Determine URL for frontend playback (MJPEG)
+        # Note: config.domain should be set to the public IP/domain of the host
+        # For local dev, it's typically 'localhost'
+        public_url = f"http://{config.domain}:{config.api_port}/streams/{stream_id}/mjpeg"
 
         if request.rtsp_url.startswith(('http://', 'https://')):
             logger.info(f"Detected HTTP source for {stream_id}. Requesting relay...")
@@ -141,7 +179,7 @@ async def register_stream(request: StreamRegisterRequest):
             
             relay_data = relay_response.json()
             final_rtsp_url = relay_data.get("relay_url")
-            public_url = relay_data.get("public_url")
+            # We ignore the relay's public_url (RTSP) in favor of our MJPEG url
         
         if not final_rtsp_url.startswith(('rtsp://', 'rtsps://')):
             raise HTTPException(
@@ -176,6 +214,7 @@ async def register_stream(request: StreamRegisterRequest):
         return StreamResponse(
             stream_id=stream_id,
             rtsp_url=final_rtsp_url,
+            public_url=public_url,
             name=request.name,
             status="registered",
             worker_id=worker_id,

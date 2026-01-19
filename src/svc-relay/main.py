@@ -89,11 +89,11 @@ async def start_relay(stream_id: str, source_url: str):
         public_url = f"rtsp://{config.domain}:{config.rtsp_port}/{stream_id}"
         internal_url = f"rtsp://{node_identity}:{config.rtsp_port}/{stream_id}"
 
-        sout_config = f"#rtp{{sdp={relay_rtsp_url}}}"
+        sout_config = f"#transcode{{vcodec=h264,vb=800,scale=1,acodec=none}}:rtp{{sdp={relay_rtsp_url}}}"
 
         cmd = [
             "cvlc", "-Idummy", actual_source,
-            "--network-caching=1500",
+            "--network-caching=3000",
             "--sout", sout_config,
             "--sout-keep"
         ]
