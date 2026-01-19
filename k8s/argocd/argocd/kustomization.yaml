@@ -1,5 +1,7 @@
 kind: Kustomization
+namespace: argocd
 resources:
-  - deployment.yaml
-  - service.yaml
   - namespace.yaml
+  - install.yaml
+  - repo.yaml
+
