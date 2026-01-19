@@ -85,7 +85,7 @@ spec:
             publishedService:
               enabled: true
           kubernetesCRD:
-            enabled: true # Required for IngressRoute and Middlewares
+            enabled: true
           kubernetesGateway:
             enabled: false
 
@@ -96,8 +96,6 @@ spec:
               name: dashboard-auth-secret
             type: Opaque
             stringData:
-              # Format: user:hashed-password (admin:admin)
-              # You should generate a proper hash for production!
               users: "admin:$apr1$A6Ocj6n0$v.W8vCeb.S/vI1P27F4v80" 
           - apiVersion: traefik.io/v1alpha1
             kind: Middleware
