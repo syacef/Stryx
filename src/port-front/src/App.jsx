@@ -191,7 +191,6 @@ function App() {
       setStatus('success');
       setMessage(`Stream active! ID: ${result.stream_id}`);
 
-      // Reset fields...
     } catch (error) {
       setStatus('error');
       setMessage(error.message);
@@ -258,11 +257,11 @@ function App() {
             <div className="lg:col-span-1 space-y-4 overflow-y-auto max-h-[70vh] pr-2 custom-scrollbar">
               {feeds.map(feed => (
                 <FeedCard
-                  key={feed.id}
+                  key={feed.stream_id}
                   feed={feed}
-                  isSelected={selectedFeed?.id === feed.id}
+                  isSelected={selectedFeed?.stream_id === feed.stream_id}
                   onSelect={setSelectedFeed}
-                  onDelete={deleteFeed}
+                  onDelete={() => deleteFeed(feed.stream_id)}
                 />
               ))}
             </div>
@@ -270,7 +269,7 @@ function App() {
               {/* Modern Video Player Placeholder */}
               <div className="aspect-video bg-stone-950 rounded-3xl border border-stone-800 overflow-hidden flex items-center justify-center group relative">
                 {selectedFeed ? (
-                  <video src={selectedFeed.rtspUrl} controls className="w-full h-full object-cover" />
+                  <video src={selectedFeed.public_url} controls className="w-full h-full object-cover" />
                 ) : (
                   <div className="text-center">
                     <Activity className="mx-auto text-stone-800 mb-4 animate-pulse" size={48} />

@@ -15,6 +15,7 @@ class Config(BaseSettings):
 
     # RTSP
     rtsp_port: int = os.getenv("RTSP_PORT", 8554)
+    domain: str = os.getenv("DOMAIN", "localhost")
 
     # API
     api_port: int = os.getenv("API_PORT", 8000)

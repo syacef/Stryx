@@ -3,23 +3,25 @@ import logging
 from typing import Optional
 from datetime import datetime
 import requests
+from config import Config
 
 logger = logging.getLogger(__name__)
-
 
 class StreamManager:
 
     STREAM_PREFIX = "stream:"
     STREAM_LIST_KEY = "streams:active"
 
-    def __init__(self, redis_client):
+    def __init__(self, redis_client, relay_service_url: str):
         self.redis = redis_client
+        self.relay_service_url = relay_service_url
         logger.info("StreamManager initialized")
-    
+
     def register_stream(
         self, 
         stream_id: str, 
         rtsp_url: str,
+        public_url: Optional[str] = None,
         name: Optional[str] = None,
         fps: int = 5,
         resolution: Optional[tuple[int, int]] = None,
@@ -38,6 +40,7 @@ class StreamManager:
         stream_data = {
             "stream_id": stream_id,
             "rtsp_url": rtsp_url,
+            "public_url": public_url or rtsp_url,
             "name": name or stream_id,
             "fps": fps,
             "resolution": resolution,
@@ -70,7 +73,7 @@ class StreamManager:
         source = self.get_stream_info(stream_id).get("source", False)
         if source == "relay":
             try:
-                response = requests.delete(f"{relay_url}/relay/stop", params={"stream_id": stream_id})
+                response = requests.delete(f"{self.relay_service_url}/relay/stop", params={"stream_id": stream_id})
                 if response.status_code != 200:
                     logger.error(f"Failed to stop relay for stream {stream_id}: {response.text}")
             except Exception as e:
