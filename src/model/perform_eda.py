@@ -66,37 +66,57 @@ def perform_eda(json_path, data_root='src/model/data/train'):
     
     # 4. Bounding Box Analysis
     areas = []
-    ratios = []
+    # To handle multiple bboxes per frame, we aggregate area by (video_id, frame_index)
+    frame_occupancy = {} # (video_id, frame_idx) -> total_bbox_area
+    total_bboxes = 0
     
     image_dims = {v['id']: (v.get('width', 1920), v.get('height', 1080)) for v in data['videos']}
 
     for ann in data['annotations']:
+        vid_id = ann['video_id']
+        
         # Data format check: 'bboxes' is usually a list of boxes for tracks in this dataset
-        # In the visualize_data.py, we saw 'bboxes' is a list of [x,y,w,h] or None
         if 'bboxes' in ann:
-            for bbox in ann['bboxes']:
+            for i, bbox in enumerate(ann['bboxes']):
                 if bbox:
                     w, h = bbox[2], bbox[3]
                     if w > 0 and h > 0:
-                        areas.append(w * h)
-                        ratios.append(w / h)
-        # Standard COCO style might have 'bbox'
+                        area = w * h
+                        areas.append(area) # Keep tracking individual box areas for min/max stats
+                        
+                        key = (vid_id, i)
+                        frame_occupancy[key] = frame_occupancy.get(key, 0.0) + area
+                        total_bboxes += 1
+                        
+        # Standard COCO style might have 'bbox' (usually image-level)
         elif 'bbox' in ann:
              w, h = ann['bbox'][2], ann['bbox'][3]
-             areas.append(w * h)
-             ratios.append(w / h)
+             area = w * h
+             areas.append(area)
+             # For single image datasets, 'image_id' is usually the key, but here we preserve video_id logic
+             # This part might need adjustment if mixed, but assuming video structure:
+             key = (vid_id, 0) # Assume frame 0 or use image_id if distinct
+             frame_occupancy[key] = frame_occupancy.get(key, 0.0) + area
 
     if areas:
         areas = np.array(areas)
         print(f"\n--- Bounding Box Statistics ---")
-        print(f"Average Area: {np.mean(areas):.2f} pixels^2")
+        print(f"Total Bboxes: {len(areas)}")
+        print(f"Average Individual Box Area: {np.mean(areas):.2f} pixels^2")
         print(f"Smallest Area: {np.min(areas)}")
         print(f"Largest Area: {np.max(areas)}")
         
-        # Relative area (assuming 1080p usually)
-        # This is rough as videos might have different sizes
-        avg_img_area = 1920 * 1080 
-        print(f"Avg Relative Area: {(np.mean(areas)/avg_img_area)*100:.2f}% of 1080p frame")
+        # Calculate Relative Area per Frame (Occupancy)
+        frame_ratios = []
+        for (vid_id, frame_idx), total_area in frame_occupancy.items():
+            img_w, img_h = image_dims.get(vid_id, (1920, 1080))
+            frame_area = img_w * img_h if img_w > 0 and img_h > 0 else 1920*1080
+            frame_ratios.append(total_area / frame_area)
+            
+        frame_ratios = np.array(frame_ratios)
+        print(f"\n--- Frame Occupancy Statistics (Frames with detection) ---")
+        print(f"Avg Relative Area (Occupancy): {np.mean(frame_ratios)*100:.2f}% of frame area")
+        print(f"Max Occupancy: {np.max(frame_ratios)*100:.2f}%")
 
     # 5. Missing Annotations?
     # Check how many video frames have no annotations at all
