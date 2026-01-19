@@ -5,6 +5,7 @@ import RegistrationForm from './RegistrationForm'
 
 export const API_CONFIG = {
   ingestionService: import.meta.env.VITE_INGESTION_SERVICE,
+  inferenceService: import.meta.env.VITE_INFERENCE_SERVICE,
   isDev: import.meta.env.DEV,
 };
 
@@ -55,6 +56,33 @@ function App() {
       }
     } catch (error) {
       console.error('Error deleting feed:', error);
+    }
+  };
+
+  const triggerInference = async () => {
+    setStatus('processing');
+    setMessage('Initiating batch inference...');
+
+    try {
+      const response = await fetch(`${API_CONFIG.inferenceService}/inference/process-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Inference batch failed');
+      }
+
+      const result = await response.json();
+      setStatus('success');
+      setMessage(`Batch started! Job ID: ${result.job_id || 'Started'}`);
+
+      setTimeout(fetchFeeds, 2000);
+
+    } catch (error) {
+      setStatus('error');
+      setMessage(error.message);
     }
   };
 
@@ -250,6 +278,16 @@ function App() {
             Stryx <span className="text-emerald-500 text-sm bg-emerald-500/10 px-3 py-1 rounded-full uppercase tracking-tighter">Wild-Life v2</span>
           </h1>
           <p className="text-stone-500 mt-2">Monitoring the digital ecosystem.</p>
+          {activeTab === 'feeds' && (
+            <button
+              onClick={triggerInference}
+              disabled={status === 'processing'}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-stone-800 disabled:text-stone-600 text-white px-6 py-3 rounded-2xl font-bold transition-all transform active:scale-95 shadow-lg shadow-emerald-900/20"
+            >
+              <Activity size={20} className={status === 'processing' ? 'animate-pulse' : ''} />
+              {status === 'processing' ? 'Processing...' : 'Process Batch'}
+            </button>
+          )}
         </header>
 
         {activeTab === 'feeds' ? (
