@@ -87,7 +87,7 @@ async def start_relay(stream_id: str, source_url: str):
 
         relay_rtsp_url = f"rtsp://0.0.0.0:{config.rtsp_port}/{stream_id}"
         public_url = f"rtsp://{config.domain}:{config.rtsp_port}/{stream_id}"
-        internal_url = f"rtsp://{node_identity}:{config.rtsp_port}/{stream_id}"
+        internal_url = f"rtsp://{node_identity}.svc-relay:{config.rtsp_port}/{stream_id}"
 
         sout_config = f"#transcode{{vcodec=h264,vb=800,scale=1,acodec=none}}:rtp{{sdp={relay_rtsp_url}}}"
 
