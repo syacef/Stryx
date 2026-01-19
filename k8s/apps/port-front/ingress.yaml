@@ -1,18 +1,18 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ingestion-service-ingress
+  name: stryx-ingress
   namespace: video-processing
 spec:
   ingressClassName: traefik
   rules:
-  - host: ingestion.localhost
+  - host: stryx.localhost
     http:
       paths:
-      - path: /streams
+      - path: /
         pathType: Prefix
         backend:
           service:
-            name: ingestion-service
+            name: port-front
             port:
-              number: 8000
+              number: 80
