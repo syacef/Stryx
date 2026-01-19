@@ -47,11 +47,17 @@ async def lifespan(app: FastAPI):
     
     running = True
     
+    # Start background worker thread
+    worker_thread = threading.Thread(target=background_worker, daemon=True)
+    worker_thread.start()
+    logger.info("Background worker thread started")
+    
     yield
     
     # Shutdown
     logger.info("Shutting down inference service...")
     running = False
+    worker_thread.join(timeout=5)
 
 
 # Initialize FastAPI app
@@ -150,10 +156,5 @@ def background_worker():
 
 
 if __name__ == "__main__":
-    
-    # Start background worker thread
-    worker_thread = threading.Thread(target=background_worker, daemon=True)
-    worker_thread.start()
-    
     # Start API server
     uvicorn.run(app, host=API_HOST, port=API_PORT)

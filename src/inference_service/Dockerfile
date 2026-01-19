@@ -26,6 +26,7 @@ RUN pip install --pre torch torchvision torchaudio --index-url https://download.
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY *.py .
+COPY student_tinyvit.onnx labels.txt student_tinyvit.onnx.data .
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
@@ -33,6 +34,7 @@ ENV REDIS_HOST=redis
 ENV REDIS_PORT=6379
 ENV DB_HOST=postgres
 ENV DB_PORT=5432
+ENV MODEL_CHECKPOINT=/app/student_tinyvit.onnx
 
 # Expose port
 EXPOSE 8001

@@ -24,7 +24,8 @@ def init_database():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Create inference results table
+    # 1. Create inference results table
+    # Note: If table exists, this does nothing, but that's fine.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inference_results (
             id SERIAL PRIMARY KEY,
@@ -43,14 +44,11 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(video_id, frame_number)
         );
-        
-        CREATE INDEX IF NOT EXISTS idx_video_id ON inference_results(video_id);
-        CREATE INDEX IF NOT EXISTS idx_created_at ON inference_results(created_at);
-        CREATE INDEX IF NOT EXISTS idx_predicted_class ON inference_results(predicted_class);
-        CREATE INDEX IF NOT EXISTS idx_country ON inference_results(country);
     """)
+    conn.commit()
     
-    # Attempt to add columns if they don't exist (migration for existing DB)
+    # 2. Attempt to add columns if they don't exist (Migration for existing DB)
+    # This must run BEFORE index creation for new columns
     try:
         cursor.execute("ALTER TABLE inference_results ADD COLUMN IF NOT EXISTS latitude FLOAT;")
         cursor.execute("ALTER TABLE inference_results ADD COLUMN IF NOT EXISTS longitude FLOAT;")
@@ -61,6 +59,15 @@ def init_database():
     except Exception as e:
         logger.warning(f"Migration warning (columns might exist): {e}")
         conn.rollback()
+
+    # 3. Create Indexes
+    # Safe to run now because columns are guaranteed to exist
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_video_id ON inference_results(video_id);
+        CREATE INDEX IF NOT EXISTS idx_created_at ON inference_results(created_at);
+        CREATE INDEX IF NOT EXISTS idx_predicted_class ON inference_results(predicted_class);
+        CREATE INDEX IF NOT EXISTS idx_country ON inference_results(country);
+    """)
 
     conn.commit()
     cursor.close()
