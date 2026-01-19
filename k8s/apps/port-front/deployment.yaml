@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: port-front
+  namespace: video-processing
+  labels:
+    app: port-front
+    type: frontends
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: port-front
+  template:
+    metadata:
+      labels:
+        app: port-front
+    spec:
+      serviceAccountName: apps
+
+      # imagePullSecrets:
+      #   - name: pull-secret
+      containers:
+        - name: port-front
+          image: port-front:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          # envFrom:
+          #   - configMapRef:
+          #       name: port-front-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "125m"
+            limits:
+              memory: "1Gi"
+              cpu: "250m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 10

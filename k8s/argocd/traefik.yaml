@@ -1,0 +1,111 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  namespace: argocd
+  name: traefik
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app: traefik
+spec:
+  project: default
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
+  destination:
+    name: in-cluster
+    namespace: traefik
+  source:
+    repoURL: https://traefik.github.io/charts
+    chart: traefik
+    targetRevision: 10.5.8
+    helm:
+      values: |
+        global:
+          checkNewVersion: false
+
+        deployment:
+          kind: Deployment
+          replicas: 1
+
+        service:
+          type: LoadBalancer
+
+        ports:
+          web:
+            port: 80
+            expose: true
+            exposedPort: 80
+            nodePort: 30000
+            protocol: TCP
+            # Automatic HTTP to HTTPS redirection
+            redirections:
+              entryPoint:
+                to: websecure
+                scheme: https
+                permanent: true
+
+          websecure:
+            port: 443
+            expose: true
+            exposedPort: 443
+            nodePort: 30001
+            protocol: TCP
+            # Note: TLS configuration is usually handled at the Ingress/Gateway level
+
+        api:
+          dashboard: true
+          insecure: false
+
+        ingressRoute:
+          dashboard:
+            enabled: true
+            matchRule: Host(`dashboard.docker.localhost`)
+            entryPoints:
+              - websecure
+            middlewares:
+              - name: dashboard-auth
+
+        # Providers configuration
+        providers:
+          kubernetesIngress:
+            enabled: true
+            publishedService:
+              enabled: true
+          kubernetesCRD:
+            enabled: true # Required for IngressRoute and Middlewares
+          kubernetesGateway:
+            enabled: false
+
+        # Custom Resources: Secret and Middleware for Dashboard Auth
+        extraObjects:
+          - apiVersion: v1
+            kind: Secret
+            metadata:
+              name: dashboard-auth-secret
+            type: Opaque
+            stringData:
+              # Format: user:hashed-password (admin:admin)
+              # You should generate a proper hash for production!
+              users: "admin:$apr1$A6Ocj6n0$v.W8vCeb.S/vI1P27F4v80" 
+          - apiVersion: traefik.io/v1alpha1
+            kind: Middleware
+            metadata:
+              name: dashboard-auth
+            spec:
+              basicAuth:
+                secret: dashboard-auth-secret
+
+        # Observability
+        logs:
+          general:
+            level: INFO
+          access:
+            enabled: true
+
+        metrics:
+          prometheus:
+            enabled: true

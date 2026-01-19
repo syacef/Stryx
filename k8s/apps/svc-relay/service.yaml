@@ -1,0 +1,18 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: svc-relay
+  namespace: video-processing
+  labels:
+    app: svc-relay
+spec:
+  type: ClusterIP
+  selector:
+    app: svc-relay
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+    - protocol: TCP
+      port: 8554
+      targetPort: 8554
