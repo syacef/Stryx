@@ -1,20 +1,15 @@
-kind: Service
 apiVersion: v1
+kind: Service
 metadata:
   name: svc-relay
   namespace: video-processing
-  labels:
-    app: svc-relay
 spec:
+  clusterIP: None
   type: ClusterIP
   selector:
     app: svc-relay
   ports:
-    - protocol: TCP
-      name: http
-      port: 8000
-      targetPort: 8000
-    - protocol: TCP
-      name: rtsp
-      port: 8554
-      targetPort: 8554
+  - name: http
+    port: 8000
+  - name: rtsp
+    port: 8554

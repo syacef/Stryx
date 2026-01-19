@@ -1,11 +1,13 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: svc-relay
   namespace: video-processing
   labels:
     app: svc-relay
 spec:
+  serviceName: svc-relay
+  replicas: 1
   selector:
     matchLabels:
       app: svc-relay
@@ -16,8 +18,8 @@ spec:
     spec:
       containers:
       - name: svc-relay
-        imagePullPolicy: Never
         image: svc-relay:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000 # FastAPI
         - containerPort: 8554 # RTSP Stream Port
@@ -46,4 +48,4 @@ spec:
           periodSeconds: 10
       volumes:
       - name: video-storage
-        emptyDir: {} # Or use a PVC if files persist across restarts
+        emptyDir: {} # Replace with volumeClaimTemplates for persistence
