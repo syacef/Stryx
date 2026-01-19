@@ -15,7 +15,7 @@ spec:
     path: k8s/redis
   destination:
     server: https://kubernetes.default.svc
-    namespace: video-processing
+    namespace: redis
   syncPolicy:
     automated:
       prune: true

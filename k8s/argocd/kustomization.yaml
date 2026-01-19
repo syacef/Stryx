@@ -3,3 +3,10 @@ namespace: argocd
 resources:
   - namespace.yaml
   - install.yaml
+
+  - argocd.yaml
+  - apps.yaml
+  - grafana.yaml
+  - redis.yaml
+  - redis-insight.yaml
+  - nvidia.yaml

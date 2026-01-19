@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-relay
+  labels:
+    app: svc-relay
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: svc-relay
+  template:
+    metadata:
+      labels:
+        app: svc-relay
+    spec:
+      containers:
+      - name: svc-relay
+        image: svc-relay:latest
+        ports:
+        - containerPort: 8000 # FastAPI
+        - containerPort: 8554 # RTSP Stream Port
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: REDIS_HOST
+          value: "redis.redis.svc.cluster.local"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: RTSP_PORT
+          value: "8554"
+        volumeMounts:
+        - name: video-storage
+          mountPath: /tmp
+      volumes:
+      - name: video-storage
+        emptyDir: {} # Or use a PVC if files persist across restarts
