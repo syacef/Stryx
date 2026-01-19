@@ -15,3 +15,5 @@ data:
   MIN_MOTION_AREA: "500"
   FRAME_SKIP: "5"
   JPEG_QUALITY: "85"
+
+  DOMAIN: "ingestion.localhost"
